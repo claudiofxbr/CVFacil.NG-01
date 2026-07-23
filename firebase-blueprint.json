@@ -1,0 +1,56 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information and account status",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Full name of the user" },
+        "email": { "type": "string", "format": "email", "description": "Email address" },
+        "role": { "type": "string", "enum": ["Cliente", "Administrador"], "description": "User role" },
+        "plan": { "type": "string", "enum": ["Free", "Premium"], "description": "Subscription plan" },
+        "avatar": { "type": "string", "description": "Base64 encoded profile picture or URL" },
+        "credits": { "type": "integer", "description": "Available AI credits" },
+        "lastLogin": { "type": "string", "format": "date-time", "description": "Last login timestamp" },
+        "status": { "type": "string", "enum": ["Ativo", "Inativo"], "description": "Account status" }
+      },
+      "required": ["name", "email", "role"]
+    },
+    "Resume": {
+      "title": "Resume",
+      "description": "Professional resume data",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "ID of the owner user" },
+        "templateId": { "type": "string", "description": "Selected template ID" },
+        "themeMode": { "type": "string", "enum": ["light", "dark"], "description": "Theme mode" },
+        "fullName": { "type": "string", "description": "Full name on resume" },
+        "role": { "type": "string", "description": "Professional role" },
+        "email": { "type": "string", "format": "email", "description": "Contact email" },
+        "phone": { "type": "string", "description": "Contact phone" },
+        "linkedin": { "type": "string", "description": "LinkedIn profile URL" },
+        "portfolio": { "type": "string", "description": "Portfolio URL" },
+        "summary": { "type": "string", "description": "Professional summary" },
+        "experiences": { "type": "array", "items": { "type": "object" }, "description": "Work experiences" },
+        "education": { "type": "array", "items": { "type": "object" }, "description": "Education history" },
+        "skills": { "type": "array", "items": { "type": "object" }, "description": "Professional skills" },
+        "languages": { "type": "array", "items": { "type": "object" }, "description": "Languages spoken" },
+        "hobbies": { "type": "array", "items": { "type": "string" }, "description": "Hobbies" },
+        "avatarUrl": { "type": "string", "description": "Base64 encoded resume photo or URL" },
+        "lastUpdated": { "type": "string", "format": "date-time", "description": "Last update timestamp" },
+        "isPinned": { "type": "boolean", "description": "Whether the resume is pinned to dashboard" }
+      },
+      "required": ["userId", "templateId", "fullName"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents"
+    },
+    "/resumes/{resumeId}": {
+      "schema": "Resume",
+      "description": "Resume documents"
+    }
+  }
+}

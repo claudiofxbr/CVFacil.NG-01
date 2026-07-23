@@ -1,0 +1,132 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId} (matches Firebase Auth UID)
+    // Fields:
+    //   - name: string (required, 1-100 chars)
+    //   - email: string (required, valid email format)
+    //   - role: string (required, enum: ['Cliente', 'Administrador'])
+    //   - plan: string (optional, enum: ['Free', 'Premium'])
+    //   - avatar: string (optional, max 1MB base64)
+    //   - credits: number (optional, >= 0)
+    //   - lastLogin: timestamp (optional)
+    //   - status: string (optional, enum: ['Ativo', 'Inativo'])
+    //
+    // Collection: resumes
+    // Document ID: {resumeId} (UUID)
+    // Fields:
+    //   - userId: string (required, matches owner UID)
+    //   - templateId: string (required)
+    //   - themeMode: string (optional, enum: ['light', 'dark'])
+    //   - fullName: string (required, 1-100 chars)
+    //   - role: string (optional)
+    //   - email: string (optional)
+    //   - phone: string (optional)
+    //   - linkedin: string (optional)
+    //   - portfolio: string (optional)
+    //   - summary: string (optional, max 2000 chars)
+    //   - experiences: list (optional, max 20 items)
+    //   - education: list (optional, max 10 items)
+    //   - skills: list (optional, max 30 items)
+    //   - languages: list (optional, max 10 items)
+    //   - hobbies: list (optional, max 10 items)
+    //   - avatarUrl: string (optional, max 1MB base64)
+    //   - lastUpdated: timestamp (optional)
+    //   - isPinned: bool (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Administrador' ||
+         (request.auth.token.email == "claudio.xavier@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidString(val, min, max) {
+      return val is string && val.size() >= min && val.size() <= max;
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['name', 'email', 'role']) &&
+             isValidString(data.name, 1, 100) &&
+             isValidEmail(data.email) &&
+             data.role in ['Cliente', 'Administrador'] &&
+             (!('plan' in data) || data.plan in ['Free', 'Premium']) &&
+             (!('status' in data) || data.status in ['Ativo', 'Inativo']) &&
+             (!('credits' in data) || (data.credits is number && data.credits >= 0)) &&
+             (!('avatar' in data) || (data.avatar is string && data.avatar.size() < 1048576));
+    }
+
+    function isValidResume(data) {
+      return data.keys().hasAll(['userId', 'templateId', 'fullName']) &&
+             data.userId == request.auth.uid &&
+             isValidString(data.fullName, 1, 100) &&
+             (!('summary' in data) || (data.summary is string && data.summary.size() <= 2000)) &&
+             (!('experiences' in data) || (data.experiences is list && data.experiences.size() <= 20)) &&
+             (!('education' in data) || (data.education is list && data.education.size() <= 10)) &&
+             (!('skills' in data) || (data.skills is list && data.skills.size() <= 30)) &&
+             (!('languages' in data) || (data.languages is list && data.languages.size() <= 10)) &&
+             (!('hobbies' in data) || (data.hobbies is list && data.hobbies.size() <= 10)) &&
+             (!('avatarUrl' in data) || (data.avatarUrl is string && data.avatarUrl.size() < 1048576));
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && 
+                    (request.resource.data.role == 'Cliente' || isAdmin());
+      
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && 
+                    (request.resource.data.role == resource.data.role || isAdmin());
+      
+      allow delete: if isAdmin();
+    }
+
+    match /resumes/{resumeId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      
+      allow create: if isAuthenticated() && isValidResume(request.resource.data);
+      
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid && 
+                    isValidResume(request.resource.data) && 
+                    request.resource.data.userId == resource.data.userId;
+      
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // Default deny
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}
