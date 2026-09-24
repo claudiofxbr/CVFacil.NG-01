@@ -34,13 +34,31 @@ const Navbar: React.FC<NavbarProps> = ({ currentView, userInfo, onMenuClick }) =
             <div className="h-8 w-px bg-forest-border"></div>
             <div className="flex items-center gap-3">
                 <div className="text-right">
-                    <p className="text-sm font-bold text-white">{userInfo.name}</p>
-                    <p className="text-[10px] font-bold text-stone-500 uppercase tracking-widest">Membro CVFacil</p>
+                    <div className="flex items-center justify-end gap-2">
+                        <p className="text-sm font-bold text-white max-w-[220px] truncate" title={userInfo.name}>{userInfo.name}</p>
+                        {userInfo.role === 'Administrador' && (
+                            <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-primary text-white uppercase tracking-wider">
+                                Admin
+                            </span>
+                        )}
+                    </div>
+                    <div className="flex items-center justify-end gap-2 mt-0.5">
+                        <span className="text-[10px] font-medium text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">
+                            {userInfo.role === 'Administrador' ? 'Créditos: ∞' : `Créditos: ${userInfo.credits ?? 10}`}
+                        </span>
+                        <p className="text-[10px] font-bold text-stone-500 uppercase tracking-widest">
+                            {userInfo.role === 'Administrador' ? 'Painel Master' : 'Membro CVFacil'}
+                        </p>
+                    </div>
                 </div>
                 {/* Foto Ícone no Topo */}
-                {userInfo.avatar && (
-                  <div className="w-10 h-10 rounded-full border-2 border-forest-border overflow-hidden">
+                {userInfo.avatar ? (
+                  <div className="w-10 h-10 rounded-full border-2 border-forest-border overflow-hidden shadow">
                       <img src={userInfo.avatar} alt="User" className="w-full h-full object-cover" />
+                  </div>
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-forest-surface border-2 border-forest-border flex items-center justify-center text-stone-400 shadow">
+                      <span className="material-symbols-outlined text-xl">person</span>
                   </div>
                 )}
             </div>

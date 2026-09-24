@@ -8,9 +8,23 @@ export const improveTextWithAI = async (text: string, context: string): Promise<
     throw new Error("O texto é muito curto para ser melhorado.");
   }
 
-  // Obter Chave de API
-  const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-  
+  // 1. Tentar via servidor (/api/gemini/editor)
+  try {
+    const res = await fetch('/api/gemini/editor', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'improve', text, context })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.result) return data.result;
+    }
+  } catch (e) {
+    console.warn("Rota /api/gemini/editor indisponível, fallback client-side:", e);
+  }
+
+  // Fallback Client-Side
+  const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("Chave de API não configurada. Por favor, verifique as configurações do ambiente.");
   }
@@ -18,7 +32,7 @@ export const improveTextWithAI = async (text: string, context: string): Promise<
   const ai = new GoogleGenAI({ apiKey });
   
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-3.6-flash',
     contents: {
       parts: [
         { text: `Você é um especialista em escrita de currículos e tech recruiter. 
@@ -53,8 +67,23 @@ export const suggestSkillsWithAI = async (experiences: any[]): Promise<string[]>
         throw new Error("Adicione algumas experiências para receber sugestões de habilidades.");
     }
 
-    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+    // 1. Tentar via servidor (/api/gemini/editor)
+    try {
+      const res = await fetch('/api/gemini/editor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'suggest-skills', experiences })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.skills) return data.skills;
+      }
+    } catch (e) {
+      console.warn("Rota /api/gemini/editor indisponível, fallback client-side:", e);
+    }
 
+    // Fallback Client-Side
+    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
     if (!apiKey) {
         throw new Error("Chave de API não configurada.");
     }
@@ -64,7 +93,7 @@ export const suggestSkillsWithAI = async (experiences: any[]): Promise<string[]>
     const expContext = experiences.map(e => `${e.role} na ${e.company}: ${e.description}`).join('\n');
 
     const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-3.6-flash',
         contents: {
             parts: [
                 { text: `Com base nas seguintes experiências profissionais, sugira uma lista de até 10 habilidades técnicas (hard skills) e comportamentais (soft skills) relevantes.
@@ -75,10 +104,11 @@ export const suggestSkillsWithAI = async (experiences: any[]): Promise<string[]>
                 Retorne APENAS uma lista de strings separadas por vírgula.` }
             ]
         }
-    });
+      });
 
     const text = response.text;
     if (!text) return [];
 
     return text.split(',').map(s => s.trim()).filter(s => s.length > 0);
 };
+

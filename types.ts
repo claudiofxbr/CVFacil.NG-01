@@ -57,10 +57,14 @@ export interface TemplateOption {
 }
 
 export interface User {
+  id?: string;
   name: string;
   avatar: string;
   email: string;
   role?: 'Administrador' | 'Cliente';
+  plan?: 'Free' | 'Premium';
+  credits?: number;
+  status?: 'Ativo' | 'Inativo';
 }
 
 export enum ViewState {

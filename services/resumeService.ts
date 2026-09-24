@@ -16,42 +16,75 @@ export const generateUUID = () => {
 // Evita o erro de QuotaExceededError do localStorage reduzindo o tamanho da imagem
 export const compressImage = (file: File, maxWidth: number = 400): Promise<string> => {
     return new Promise((resolve, reject) => {
+      // Timeout de segurança para evitar promessas travadas indefinidamente
+      const timer = setTimeout(() => {
+        reject(new Error("Tempo limite excedido ao processar a imagem."));
+      }, 10000);
+
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = (event) => {
-        const img = new Image();
-        img.src = event.target?.result as string;
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const scaleSize = maxWidth / img.width;
-          
-          // Se a imagem for menor que o limite, usa o tamanho original
-          if (scaleSize >= 1) {
-             canvas.width = img.width;
-             canvas.height = img.height;
-          } else {
-             canvas.width = maxWidth;
-             canvas.height = img.height * scaleSize;
-          }
+        const rawDataUrl = event.target?.result as string;
+        if (!rawDataUrl) {
+          clearTimeout(timer);
+          reject(new Error("Falha ao ler o arquivo de imagem."));
+          return;
+        }
 
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-             reject("Contexto do canvas não encontrado");
-             return;
+        const img = new Image();
+        img.src = rawDataUrl;
+        img.onload = () => {
+          clearTimeout(timer);
+          try {
+            if (!img.width || !img.height) {
+              // Se dimensões forem inválidas, devolve a imagem lida diretamente
+              resolve(rawDataUrl);
+              return;
+            }
+
+            const canvas = document.createElement('canvas');
+            const scaleSize = maxWidth / img.width;
+            
+            // Se a imagem for menor que o limite, usa o tamanho original
+            if (scaleSize >= 1) {
+               canvas.width = img.width;
+               canvas.height = img.height;
+            } else {
+               canvas.width = maxWidth;
+               canvas.height = Math.round(img.height * scaleSize);
+            }
+
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+               resolve(rawDataUrl);
+               return;
+            }
+            
+            // Preencher fundo com branco para evitar fundo preto em PNGs transparentes
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            
+            // Converte para JPEG com 75% de qualidade para otimizar armazenamento
+            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.75);
+            resolve(compressedDataUrl);
+          } catch (e) {
+            // Em caso de falha do canvas, utiliza o dataUrl direto com segurança
+            console.warn("Fallback para imagem original devido a erro no canvas:", e);
+            resolve(rawDataUrl);
           }
-          
-          // Preencher fundo com branco para evitar fundo preto em PNGs transparentes
-          ctx.fillStyle = '#FFFFFF';
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          
-          // Converte para JPEG com 70% de qualidade para otimizar armazenamento
-          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
-          resolve(compressedDataUrl);
         };
-        img.onerror = (err) => reject(err);
+        img.onerror = (err) => {
+          clearTimeout(timer);
+          console.error("Erro no carregamento da imagem:", err);
+          // Fallback se o navegador falhar no decode do canvas
+          resolve(rawDataUrl);
+        };
       };
-      reader.onerror = (err) => reject(err);
+      reader.onerror = (err) => {
+        clearTimeout(timer);
+        reject(err);
+      };
     });
 };
 

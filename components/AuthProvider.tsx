@@ -3,6 +3,15 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase, isConfigValid } from '../supabase';
 import { User } from '../types';
+import { 
+  ADMIN_MASTER_NAME, 
+  ADMIN_MASTER_EMAIL, 
+  CLAUDIO_ADMIN_EMAIL, 
+  CLAUDIO_ADMIN_NAME, 
+  isMasterAdminAccount, 
+  getLocalUsers, 
+  updateLocalUser 
+} from '../services/userService';
 
 interface AuthContextType {
   user: any | null;
@@ -10,7 +19,7 @@ interface AuthContextType {
   loading: boolean;
   isAdmin: boolean;
   isConfigured: boolean;
-  loginLocal: (email: string, name: string, role: string, avatar?: string) => void;
+  loginLocal: (email: string, name: string, role: string, avatar?: string, credits?: number, plan?: 'Free' | 'Premium') => void;
   logoutLocal: () => void;
 }
 
@@ -33,19 +42,81 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAdmin, setIsAdmin] = useState(false);
 
   // Connection state
-  const [isConfigured] = useState(isConfigValid);
+  const [isConfigured] = useState(() => isConfigValid());
 
   // Local Auth functions
-  const loginLocal = (email: string, name: string, role: string, avatar?: string) => {
-    const localUser = { id: 'local-' + Date.now(), email, user_metadata: { full_name: name } };
-    const localProfile = { name, email, role: role as any, avatar: avatar || '' };
+  const loginLocal = (
+    email: string, 
+    name: string, 
+    role: string, 
+    avatar?: string, 
+    credits?: number, 
+    plan?: 'Free' | 'Premium'
+  ) => {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanName = name?.trim();
+
+    // 1. Consulta usuários cadastrados no banco local
+    const localUsers = getLocalUsers();
+    const existing = localUsers.find(u => u.email?.toLowerCase() === cleanEmail);
+
+    // 2. Verifica se é conta de autoridade Master ou Administrador com paridade
+    const isSpecificMaster = isMasterAdminAccount(cleanEmail, cleanName);
+    const isAdminUser = isSpecificMaster || role === 'Administrador' || existing?.role === 'Administrador';
+
+    const effectiveRole = isAdminUser ? 'Administrador' : (existing?.role || ((role as any) || 'Cliente'));
+    
+    let effectiveName = cleanName;
+    if (!effectiveName || effectiveName === 'Usuário' || effectiveName === 'Administrador') {
+      if (cleanEmail === CLAUDIO_ADMIN_EMAIL.toLowerCase()) {
+        effectiveName = CLAUDIO_ADMIN_NAME;
+      } else if (cleanEmail === ADMIN_MASTER_EMAIL.toLowerCase()) {
+        effectiveName = ADMIN_MASTER_NAME;
+      } else {
+        effectiveName = existing?.name || (cleanEmail.split('@')[0] || 'Usuário');
+      }
+    }
+
+    const effectiveCredits = isAdminUser ? 999999 : (existing?.credits ?? (credits ?? 10));
+    const effectivePlan = isAdminUser ? 'Premium' : (existing?.plan || (plan || 'Free'));
+    const effectiveId = existing?.id || (cleanEmail === CLAUDIO_ADMIN_EMAIL.toLowerCase() ? 'admin-claudio' : (isSpecificMaster ? 'admin-master' : ('local-' + Date.now())));
+
+    const localUser = { 
+      id: effectiveId, 
+      email: cleanEmail, 
+      user_metadata: { full_name: effectiveName } 
+    };
+
+    const localProfile: User = { 
+      id: localUser.id,
+      name: effectiveName, 
+      email: cleanEmail, 
+      role: effectiveRole, 
+      avatar: avatar || existing?.avatar || (isAdminUser ? `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(effectiveName)}` : ''),
+      credits: effectiveCredits,
+      plan: effectivePlan,
+      status: 'Ativo'
+    };
     
     localStorage.setItem('cvfacil_local_user', JSON.stringify(localUser));
     localStorage.setItem('cvfacil_local_profile', JSON.stringify(localProfile));
+
+    // Sincroniza com a lista de usuários locais garantindo estrita paridade
+    updateLocalUser({
+      id: localUser.id,
+      name: effectiveName,
+      email: cleanEmail,
+      role: effectiveRole,
+      plan: effectivePlan,
+      status: 'Ativo',
+      credits: effectiveCredits,
+      avatar: localProfile.avatar,
+      last_login: new Date().toISOString()
+    });
     
     setUser(localUser);
     setProfile(localProfile);
-    setIsAdmin(role === 'Administrador');
+    setIsAdmin(isAdminUser);
     setLoading(false);
   };
 
@@ -60,14 +131,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     // Se o Supabase não estiver configurado, usa o modo local
     if (!isConfigured) {
+      // Garante que o banco de usuários locais está inicializado
+      getLocalUsers();
+
       const savedUser = localStorage.getItem('cvfacil_local_user');
       const savedProfile = localStorage.getItem('cvfacil_local_profile');
       
       if (savedUser && savedProfile) {
         setUser(JSON.parse(savedUser));
-        const p = JSON.parse(savedProfile);
+        const p: User = JSON.parse(savedProfile);
         setProfile(p);
-        setIsAdmin(p.role === 'Administrador');
+        setIsAdmin(p.role === 'Administrador' || isMasterAdminAccount(p.email, p.name));
       }
       setLoading(false);
       return;
@@ -89,7 +163,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(JSON.parse(savedUser));
           const p = JSON.parse(savedProfile);
           setProfile(p);
-          setIsAdmin(p.role === 'Administrador');
+          setIsAdmin(p.role === 'Administrador' || isMasterAdminAccount(p.email, p.name));
         }
       }
       setLoading(false);

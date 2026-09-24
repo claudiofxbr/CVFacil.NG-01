@@ -1,0 +1,78 @@
+name: CI/CD Pipeline - Deploy para VPS Hostinger
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  build-and-test:
+    name: Build & Validação
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar Dependências
+        run: npm ci
+
+      - name: Compilar Projeto (Next.js Build)
+        env:
+          NEXT_PUBLIC_GEMINI_API_KEY: ${{ secrets.NEXT_PUBLIC_GEMINI_API_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: npm run build
+
+  deploy-vps:
+    name: Deploy na VPS Hostinger
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+
+    steps:
+      - name: Executar Deploy via SSH na VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script_stop: true
+          script: |
+            set -e
+            echo "🚀 [DevOps] Iniciando atualização na VPS Hostinger..."
+            APP_DIR="${{ secrets.VPS_APP_DIR || '/var/www/cvfacil-ng' }}"
+            
+            if [ ! -d "$APP_DIR" ]; then
+              echo "❌ Diretório $APP_DIR não encontrado. Execute o script de setup inicial primeiro."
+              exit 1
+            fi
+
+            cd "$APP_DIR"
+            echo "📥 Atualizando código fonte do GitHub..."
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "📦 Instalando dependências em produção..."
+            npm ci --omit=dev || npm install --production=false
+
+            echo "🏗️ Gerando build de produção..."
+            npm run build
+
+            echo "🔄 Reiniciando serviço no PM2..."
+            if pm2 list | grep -q "cvfacil-ng"; then
+              pm2 reload cvfacil-ng --update-env
+            else
+              pm2 start npm --name "cvfacil-ng" -- start -- -p 3000
+              pm2 save
+            fi
+
+            echo "✅ Deploy concluído com sucesso!"

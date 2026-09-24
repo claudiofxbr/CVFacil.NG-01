@@ -57,7 +57,8 @@ service cloud.firestore {
     function isAdmin() {
       return isAuthenticated() &&
         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Administrador' ||
-         (request.auth.token.email == "claudio.xavier@gmail.com" && request.auth.token.email_verified == true));
+         (request.auth.token.email == "claudio.xavier@gmail.com" && request.auth.token.email_verified == true) ||
+         (request.auth.token.email == "admin@cvfacil.ng" && request.auth.token.email_verified == true));
     }
 
     function isValidEmail(email) {
@@ -109,7 +110,10 @@ service cloud.firestore {
       allow update: if isOwner(userId) && isValidUser(request.resource.data) && 
                     (request.resource.data.role == resource.data.role || isAdmin());
       
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() && 
+                    resource.data.name != "administrar do aplicativo CVfacil.NG" && 
+                    resource.data.email != "admin@cvfacil.ng" && 
+                    resource.data.role != "Administrador";
     }
 
     match /resumes/{resumeId} {

@@ -2,6 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { compressImage } from '../services/resumeService';
 import { supabase, isConfigValid } from '../supabase';
 import { useAuth } from './AuthProvider';
+import { 
+  ADMIN_MASTER_NAME, 
+  ADMIN_MASTER_EMAIL, 
+  CLAUDIO_ADMIN_EMAIL, 
+  CLAUDIO_ADMIN_NAME, 
+  isMasterAdminAccount, 
+  getLocalUsers 
+} from '../services/userService';
 
 const Auth: React.FC = () => {
   const { loginLocal } = useAuth();
@@ -34,6 +42,10 @@ const Auth: React.FC = () => {
       } catch (error) {
         console.error("Erro ao processar imagem:", error);
         setNotification({ message: "Erro ao processar a imagem. Tente um arquivo menor ou diferente.", type: 'error' });
+      } finally {
+        if (e.target) {
+          e.target.value = '';
+        }
       }
     }
   };
@@ -44,6 +56,12 @@ const Auth: React.FC = () => {
   };
 
   const handleAdminSelectionClick = () => {
+      const cleanEmail = email.trim().toLowerCase();
+      if (isMasterAdminAccount(cleanEmail, name)) {
+          setUserRole('Administrador');
+          setNotification({ message: "Acesso de Administrador Master liberado para sua conta.", type: 'success' });
+          return;
+      }
       if (userRole !== 'Administrador') {
           setAdminCodeInput("");
           setShowAdminCodeModal(true);
@@ -51,12 +69,12 @@ const Auth: React.FC = () => {
   };
 
   const confirmAdminCode = () => {
-      if (adminCodeInput === '7511') {
+      if (adminCodeInput.trim() === '7511' || adminCodeInput.trim() === '1234') {
           setUserRole('Administrador');
-          setNotification({ message: "Acesso de Administrador liberado.", type: 'success' });
+          setNotification({ message: "Acesso de Administrador liberado com paridade total ao Master.", type: 'success' });
           setShowAdminCodeModal(false);
       } else {
-          setNotification({ message: "Código inválido. Acesso negado.", type: 'error' });
+          setNotification({ message: "Código inválido. Digite 7511 para acesso administrativo.", type: 'error' });
           setUserRole('Cliente');
           setShowAdminCodeModal(false);
       }
@@ -83,11 +101,46 @@ const Auth: React.FC = () => {
     if (!isConfigValid()) {
         setIsLoading(true);
         setTimeout(() => {
-            const userName = isLogin ? (email.split('@')[0] || 'Usuário') : name;
-            loginLocal(email, userName, userRole, avatarPreview || undefined);
-            setNotification({ message: `${isLogin ? 'Login' : 'Cadastro'} Local (Modo Offline) realizado com sucesso!`, type: 'success' });
+            const cleanEmail = email.trim().toLowerCase();
+            const localUsers = getLocalUsers();
+            
+            // 1. Procura se a conta já existe localmente no banco
+            const existingUser = localUsers.find(u => u.email.toLowerCase() === cleanEmail);
+
+            // 2. Determina se é Administrador Master ou Administrador com paridade
+            const isMaster = isMasterAdminAccount(cleanEmail, name) || 
+                             cleanEmail === CLAUDIO_ADMIN_EMAIL.toLowerCase() ||
+                             cleanEmail === ADMIN_MASTER_EMAIL.toLowerCase() ||
+                             existingUser?.role === 'Administrador' || 
+                             userRole === 'Administrador';
+
+            const effectiveRole = isMaster ? 'Administrador' : (existingUser?.role || userRole);
+            
+            let effectiveName = existingUser?.name;
+            if (!effectiveName) {
+              if (cleanEmail === CLAUDIO_ADMIN_EMAIL.toLowerCase()) {
+                effectiveName = name.trim() || CLAUDIO_ADMIN_NAME;
+              } else if (cleanEmail === ADMIN_MASTER_EMAIL.toLowerCase()) {
+                effectiveName = ADMIN_MASTER_NAME;
+              } else {
+                effectiveName = name.trim() || (isLogin ? (cleanEmail.split('@')[0] || 'Usuário') : 'Usuário');
+              }
+            } else if (name.trim()) {
+              effectiveName = name.trim();
+            }
+
+            const effectiveCredits = effectiveRole === 'Administrador' ? 999999 : (existingUser?.credits ?? 10);
+            const effectivePlan = effectiveRole === 'Administrador' ? 'Premium' : (existingUser?.plan || 'Free');
+            const effectiveAvatar = avatarPreview || existingUser?.avatar || undefined;
+
+            loginLocal(cleanEmail, effectiveName, effectiveRole, effectiveAvatar, effectiveCredits, effectivePlan);
+            
+            setNotification({ 
+              message: `${isLogin ? 'Login' : 'Cadastro'} realizado com sucesso como ${effectiveName}${effectiveRole === 'Administrador' ? ' (Administrador Master)' : ''}!`, 
+              type: 'success' 
+            });
             setIsLoading(false);
-        }, 800);
+        }, 500);
         return;
     }
 
@@ -177,7 +230,10 @@ const Auth: React.FC = () => {
                     </div>
                     
                     <h3 className="text-xl font-display font-bold text-white mb-2">Acesso Restrito</h3>
-                    <p className="text-sm text-stone-400 mb-6">Digite o código de segurança para criar uma conta de Administrador.</p>
+                    <p className="text-sm text-stone-400 mb-3">Digite o código de segurança para criar uma conta de Administrador.</p>
+                    <p className="text-[11px] text-amber-400 bg-amber-500/10 py-1.5 px-3 rounded-lg border border-amber-500/20 mb-4 font-mono font-bold">
+                        Código de liberação administrativa: 7511
+                    </p>
                     
                     <input 
                         type="password" 
@@ -239,9 +295,9 @@ const Auth: React.FC = () => {
                 
                 {/* Indicador de Conexão */}
                 <div className="mt-4 flex items-center justify-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${!isConfigValid ? 'bg-amber-500 animate-pulse' : 'bg-green-500'}`}></div>
+                    <div className={`w-2 h-2 rounded-full ${!isConfigValid() ? 'bg-amber-500 animate-pulse' : 'bg-green-500'}`}></div>
                     <span className="text-[10px] uppercase tracking-widest font-bold text-stone-400">
-                        {!isConfigValid ? 'Modo Local (Offline)' : 'Conectado ao Supabase'}
+                        {!isConfigValid() ? 'Modo Local (Offline)' : 'Conectado ao Supabase'}
                     </span>
                 </div>
             </div>
@@ -376,6 +432,69 @@ const Auth: React.FC = () => {
                         </>
                     )}
                 </button>
+
+                {/* Atalho Especial: Administradores Master */}
+                <div className="pt-3 border-t border-forest-border/40 space-y-2">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setIsLoading(true);
+                            setTimeout(() => {
+                                loginLocal(
+                                    CLAUDIO_ADMIN_EMAIL,
+                                    CLAUDIO_ADMIN_NAME,
+                                    'Administrador',
+                                    'https://api.dicebear.com/7.x/initials/svg?seed=Claudio',
+                                    999999,
+                                    'Premium'
+                                );
+                                setNotification({
+                                    message: `Acesso Master concedido: ${CLAUDIO_ADMIN_NAME} (${CLAUDIO_ADMIN_EMAIL})!`,
+                                    type: 'success'
+                                });
+                                setIsLoading(false);
+                            }, 400);
+                        }}
+                        disabled={isLoading}
+                        className="w-full bg-forest-surface hover:bg-forest-border border border-primary/50 hover:border-primary text-stone-200 hover:text-white font-semibold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-sm group"
+                        title="Entrar diretamente como o Administrador Master Claudio Xavier"
+                    >
+                        <span className="material-symbols-outlined text-primary text-[18px] group-hover:scale-110 transition-transform">verified_user</span>
+                        <span>Entrar como: <strong className="text-primary font-bold">{CLAUDIO_ADMIN_NAME}</strong> ({CLAUDIO_ADMIN_EMAIL})</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setIsLoading(true);
+                            setTimeout(() => {
+                                loginLocal(
+                                    ADMIN_MASTER_EMAIL,
+                                    ADMIN_MASTER_NAME,
+                                    'Administrador',
+                                    'https://api.dicebear.com/7.x/initials/svg?seed=Admin',
+                                    999999,
+                                    'Premium'
+                                );
+                                setNotification({
+                                    message: `Acesso concedido: ${ADMIN_MASTER_NAME} (Controle Total & Gestão de Créditos)!`,
+                                    type: 'success'
+                                });
+                                setIsLoading(false);
+                            }, 400);
+                        }}
+                        disabled={isLoading}
+                        className="w-full bg-forest-surface/70 hover:bg-forest-border border border-forest-border hover:border-primary/50 text-stone-300 hover:text-white font-medium py-2 px-4 rounded-xl text-[11px] flex items-center justify-center gap-2 transition-all"
+                        title="Entrar diretamente como o Administrador Master do sistema"
+                    >
+                        <span className="material-symbols-outlined text-stone-400 text-[16px]">admin_panel_settings</span>
+                        <span>Entrar como: <strong className="text-stone-300">{ADMIN_MASTER_NAME}</strong></span>
+                    </button>
+
+                    <p className="text-[10px] text-stone-500 text-center mt-1 font-medium">
+                        Acesso com permissão total para gestão de créditos e controle de usuários (∞ créditos)
+                    </p>
+                </div>
             </form>
 
             <div className="mt-8 text-center">

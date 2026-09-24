@@ -92,127 +92,143 @@ export const importResumeFromPdf = async (
     reader.onerror = error => reject(error);
   });
 
-  // 3. Obter Chave de API
-  const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-  
-  if (!apiKey) {
-    throw new Error("Chave de API não encontrada. Por favor, verifique se a variável NEXT_PUBLIC_GEMINI_API_KEY está configurada no seu painel da Hostinger.");
+  // 3. Tentar chamada via servidor (/api/gemini/import-pdf)
+  let rawText = '';
+  try {
+    const apiRes = await fetch('/api/gemini/import-pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ base64Data })
+    });
+    if (apiRes.ok) {
+      const jsonRes = await apiRes.json();
+      if (jsonRes.data) {
+        rawText = JSON.stringify(jsonRes.data);
+      }
+    }
+  } catch (err) {
+    console.warn("Rota /api/gemini/import-pdf indisponível, utilizando fallback client-side:", err);
   }
 
-  // 4. Inicializar Gemini
-  const ai = new GoogleGenAI({ apiKey });
-  
-  // 5. Definir Schema de Resposta
-  const resumeSchema = {
-    type: Type.OBJECT,
-    properties: {
-      fullName: { type: Type.STRING, description: "Nome completo do candidato" },
-      role: { type: Type.STRING, description: "Cargo ou profissão principal" },
-      email: { type: Type.STRING, description: "E-mail de contato" },
-      phone: { type: Type.STRING, description: "Telefone de contato" },
-      linkedin: { type: Type.STRING, description: "URL do perfil no LinkedIn" },
-      portfolio: { type: Type.STRING, description: "URL do portfólio ou site pessoal" },
-      summary: { type: Type.STRING, description: "Resumo profissional ou objetivo" },
-      experiences: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            role: { type: Type.STRING, description: "Cargo ocupado" },
-            company: { type: Type.STRING, description: "Nome da empresa" },
-            period: { type: Type.STRING, description: "Período (ex: Jan 2020 - Mar 2022)" },
-            description: { type: Type.STRING, description: "Descrição das atividades e conquistas" },
-          },
-          required: ["role", "company"]
-        }
-      },
-      education: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            degree: { type: Type.STRING, description: "Nome do curso ou grau" },
-            institution: { type: Type.STRING, description: "Nome da instituição" },
-            year: { type: Type.STRING, description: "Ano de conclusão ou período" },
-            type: { 
-              type: Type.STRING, 
-              description: "Tipo de formação",
-              enum: ["Bacharelado", "Certificação", "Mestrado", "Extensão"]
+  if (!rawText) {
+    // Fallback Client-side Gemini Call
+    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("Chave de API não encontrada. Por favor, verifique se a variável de ambiente da API Gemini está configurada.");
+    }
+
+    const ai = new GoogleGenAI({ apiKey });
+
+    const resumeSchema = {
+      type: Type.OBJECT,
+      properties: {
+        fullName: { type: Type.STRING, description: "Nome completo do candidato" },
+        role: { type: Type.STRING, description: "Cargo ou profissão principal" },
+        email: { type: Type.STRING, description: "E-mail de contato" },
+        phone: { type: Type.STRING, description: "Telefone de contato" },
+        linkedin: { type: Type.STRING, description: "URL do perfil no LinkedIn" },
+        portfolio: { type: Type.STRING, description: "URL do portfólio ou site pessoal" },
+        summary: { type: Type.STRING, description: "Resumo profissional ou objetivo" },
+        experiences: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              role: { type: Type.STRING, description: "Cargo ocupado" },
+              company: { type: Type.STRING, description: "Nome da empresa" },
+              period: { type: Type.STRING, description: "Período (ex: Jan 2020 - Mar 2022)" },
+              description: { type: Type.STRING, description: "Descrição das atividades e conquistas" },
             },
-          },
-          required: ["degree", "institution"]
-        }
-      },
-      skills: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            name: { type: Type.STRING, description: "Nome da habilidade" },
-            level: { type: Type.NUMBER, description: "Nível de proficiência de 0 a 100" }
-          },
-          required: ["name", "level"]
-        }
-      },
-      languages: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            name: { type: Type.STRING, description: "Nome do idioma" },
-            level: { type: Type.STRING, description: "Nível (ex: Básico, Intermediário, Avançado, Fluente)" }
-          },
-          required: ["name", "level"]
-        }
-      },
-      hobbies: {
-        type: Type.ARRAY,
-        items: { type: Type.STRING }
-      }
-    },
-    required: ["fullName", "role", "summary", "experiences", "education", "skills"]
-  };
-
-  // 5. Chamar a IA com timeout e retry
-  let retries = 0;
-  const MAX_RETRIES = 2;
-  let response: any;
-
-  while (retries < MAX_RETRIES) {
-    try {
-      const aiPromise = ai.models.generateContent({
-        model: 'gemini-3.1-pro-preview', 
-        contents: {
-          parts: [
-            { inlineData: { mimeType: 'application/pdf', data: base64Data } },
-            { text: "Você é um especialista em recrutamento e seleção (Tech Recruiter). Analise cuidadosamente este currículo em PDF. Extraia todas as informações relevantes, mesmo que o layout seja complexo (ex: múltiplas colunas, tabelas). Converta os dados para o formato JSON estruturado seguindo rigorosamente o schema fornecido. Se uma informação não estiver presente, use valores vazios ou arrays vazios. Padronize as datas para um formato legível (ex: 'MM/AAAA' ou 'AAAA'). Se o resumo profissional estiver ausente, crie um resumo profissional impactante baseado nas experiências extraídas." }
-          ]
+            required: ["role", "company"]
+          }
         },
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: resumeSchema
+        education: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              degree: { type: Type.STRING, description: "Nome do curso ou grau" },
+              institution: { type: Type.STRING, description: "Nome da instituição" },
+              year: { type: Type.STRING, description: "Ano de conclusão ou período" },
+              type: { 
+                type: Type.STRING, 
+                description: "Tipo de formação",
+                enum: ["Bacharelado", "Certificação", "Mestrado", "Extensão"]
+              },
+            },
+            required: ["degree", "institution"]
+          }
+        },
+        skills: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              name: { type: Type.STRING, description: "Nome da habilidade" },
+              level: { type: Type.NUMBER, description: "Nível de proficiência de 0 a 100" }
+            },
+            required: ["name", "level"]
+          }
+        },
+        languages: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              name: { type: Type.STRING, description: "Nome do idioma" },
+              level: { type: Type.STRING, description: "Nível (ex: Básico, Intermediário, Avançado, Fluente)" }
+            },
+            required: ["name", "level"]
+          }
+        },
+        hobbies: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING }
         }
-      });
+      },
+      required: ["fullName", "role", "summary", "experiences", "education", "skills"]
+    };
 
-      const aiTimeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("TIMEOUT_AI")), 60000) // Timeout aumentado para 60s
-      );
+    let retries = 0;
+    const MAX_RETRIES = 2;
+    let response: any;
 
-      response = await Promise.race([aiPromise, aiTimeoutPromise]) as any;
-      break; // Sucesso
-    } catch (error: any) {
-      retries++;
-      if (error.message === "TIMEOUT_AI" && retries < MAX_RETRIES) {
-        console.warn(`Tentativa ${retries} falhou por timeout, tentando novamente...`);
-        continue;
+    while (retries < MAX_RETRIES) {
+      try {
+        const aiPromise = ai.models.generateContent({
+          model: 'gemini-3.6-flash', 
+          contents: {
+            parts: [
+              { inlineData: { mimeType: 'application/pdf', data: base64Data } },
+              { text: "Você é um especialista em recrutamento e seleção (Tech Recruiter). Analise cuidadosamente este currículo em PDF. Extraia todas as informações relevantes, mesmo que o layout seja complexo (ex: múltiplas colunas, tabelas). Converta os dados para o formato JSON estruturado seguindo rigorosamente o schema fornecido. Se uma informação não estiver presente, use valores vazios ou arrays vazios. Padronize as datas para um formato legível (ex: 'MM/AAAA' ou 'AAAA'). Se o resumo profissional estiver ausente, crie um resumo profissional impactante baseado nas experiências extraídas." }
+            ]
+          },
+          config: {
+            responseMimeType: 'application/json',
+            responseSchema: resumeSchema
+          }
+        });
+
+        const aiTimeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("TIMEOUT_AI")), 60000)
+        );
+
+        response = await Promise.race([aiPromise, aiTimeoutPromise]) as any;
+        rawText = response.text || '';
+        break;
+      } catch (error: any) {
+        retries++;
+        if (error.message === "TIMEOUT_AI" && retries < MAX_RETRIES) {
+          console.warn(`Tentativa ${retries} falhou por timeout, tentando novamente...`);
+          continue;
+        }
+        throw error;
       }
-      throw error;
     }
   }
 
   try {
     // 6. Processar Resposta
-    const rawText = response.text;
     if (!rawText) {
       throw new Error("A IA não retornou nenhum conteúdo. Tente novamente.");
     }

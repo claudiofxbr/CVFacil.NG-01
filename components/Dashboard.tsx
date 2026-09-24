@@ -251,9 +251,8 @@ const Dashboard: React.FC<{
         const printContent = printRef.current.innerHTML;
         const printWindow = window.open('', '_blank');
 
-        if (printWindow) {
-            // Configuração do Tailwind para manter o design original
-            const tailwindConfig = `
+        // Configuração do Tailwind para manter o design original
+        const tailwindConfig = `
                 <script src="https://cdn.tailwindcss.com"></script>
                 <script>
                   tailwind.config = {
@@ -280,7 +279,8 @@ const Dashboard: React.FC<{
                 </script>
             `;
 
-            printWindow.document.write(`
+            const printHtml = `
+                <!DOCTYPE html>
                 <html>
                 <head>
                     <title>${printingResume?.fullName || 'Currículo'} - CVFacil.NG</title>
@@ -325,12 +325,41 @@ const Dashboard: React.FC<{
                     </script>
                 </body>
                 </html>
-            `);
-            printWindow.document.close();
-            setNotification({ message: "Selecione 'Salvar como PDF' na janela que abriu.", type: 'success' });
-        } else {
-            setNotification({ message: "Pop-up bloqueado. Permita pop-ups para baixar o PDF.", type: 'error' });
-        }
+            `;
+
+            if (printWindow) {
+                printWindow.document.open();
+                printWindow.document.write(printHtml);
+                printWindow.document.close();
+                setNotification({ message: "Selecione 'Salvar como PDF' na janela que abriu.", type: 'success' });
+            } else {
+                // Fallback para ambiente com bloqueador de popups / iframes
+                const printIframe = document.createElement('iframe');
+                printIframe.style.position = 'fixed';
+                printIframe.style.right = '0';
+                printIframe.style.bottom = '0';
+                printIframe.style.width = '0';
+                printIframe.style.height = '0';
+                printIframe.style.border = '0';
+                document.body.appendChild(printIframe);
+                
+                const doc = printIframe.contentWindow?.document;
+                if (doc) {
+                    doc.open();
+                    doc.write(printHtml);
+                    doc.close();
+                    setTimeout(() => {
+                        printIframe.contentWindow?.focus();
+                        printIframe.contentWindow?.print();
+                        setNotification({ message: "Diálogo de impressão/PDF acionado!", type: 'success' });
+                        setTimeout(() => {
+                            try { document.body.removeChild(printIframe); } catch (e) {}
+                        }, 3000);
+                    }, 1000);
+                } else {
+                    setNotification({ message: "Não foi possível gerar a janela de impressão.", type: 'error' });
+                }
+            }
 
     } catch (error) {
         console.error("Erro:", error);

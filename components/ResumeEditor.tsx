@@ -37,9 +37,11 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ resumeId, onBack, initialTe
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
   const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
+  const [isAvatarLoading, setIsAvatarLoading] = useState<boolean>(false);
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error' | 'loading'} | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // Timer para limpar notificação automaticamente
   useEffect(() => {
@@ -128,8 +130,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ resumeId, onBack, initialTe
         }
         
         localStorage.setItem('cvfacil_local_resumes', JSON.stringify(localResumes));
-        await generatePdfAction();
-        onBack();
+        setResumeData(dataToSave);
+        setNotification({ message: "Currículo salvo com sucesso!", type: 'success' });
         return;
       }
 
@@ -139,8 +141,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ resumeId, onBack, initialTe
 
       if (error) throw error;
 
-      await generatePdfAction();
-      onBack();
+      setResumeData(dataToSave);
+      setNotification({ message: "Currículo salvo com sucesso!", type: 'success' });
     } catch (err: any) {
       handleSupabaseError(err, OperationType.WRITE, 'resumes');
     } finally {
@@ -174,8 +176,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ resumeId, onBack, initialTe
         const printContent = previewRef.current.innerHTML;
         const printWindow = window.open('', '_blank');
 
-        if (printWindow) {
-            const tailwindConfig = `
+        const tailwindConfig = `
                 <script src="https://cdn.tailwindcss.com"></script>
                 <script>
                   tailwind.config = {
@@ -202,7 +203,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ resumeId, onBack, initialTe
                 </script>
             `;
 
-            printWindow.document.write(`
+            const printHtml = `
+                <!DOCTYPE html>
                 <html>
                 <head>
                     <title>${resumeData.fullName || 'Currículo'} - CVFacil.NG</title>
@@ -247,12 +249,41 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ resumeId, onBack, initialTe
                     </script>
                 </body>
                 </html>
-            `);
-            printWindow.document.close();
-            setNotification({ message: "Selecione 'Salvar como PDF' na janela que abriu.", type: 'success' });
-        } else {
-            setError("Pop-up bloqueado. Permita pop-ups para baixar o PDF.");
-        }
+            `;
+
+            if (printWindow) {
+                printWindow.document.open();
+                printWindow.document.write(printHtml);
+                printWindow.document.close();
+                setNotification({ message: "Selecione 'Salvar como PDF' na janela que abriu.", type: 'success' });
+            } else {
+                // Fallback para ambiente com restrição de popups / iframes
+                const printIframe = document.createElement('iframe');
+                printIframe.style.position = 'fixed';
+                printIframe.style.right = '0';
+                printIframe.style.bottom = '0';
+                printIframe.style.width = '0';
+                printIframe.style.height = '0';
+                printIframe.style.border = '0';
+                document.body.appendChild(printIframe);
+                
+                const doc = printIframe.contentWindow?.document;
+                if (doc) {
+                    doc.open();
+                    doc.write(printHtml);
+                    doc.close();
+                    setTimeout(() => {
+                        printIframe.contentWindow?.focus();
+                        printIframe.contentWindow?.print();
+                        setNotification({ message: "Diálogo de impressão/PDF acionado!", type: 'success' });
+                        setTimeout(() => {
+                            try { document.body.removeChild(printIframe); } catch (e) {}
+                        }, 3000);
+                    }, 1000);
+                } else {
+                    setError("Não foi possível gerar a janela de impressão.");
+                }
+            }
 
     } catch (error) {
         console.error("Erro:", error);
@@ -262,13 +293,47 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ resumeId, onBack, initialTe
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      try {
-        const compressed = await compressImage(file);
-        updateField('avatarUrl', compressed);
-      } catch (err) {
-        console.error("Erro ao processar imagem:", err);
+    if (!file) return;
+
+    // Validação de tipo de arquivo
+    if (!file.type.startsWith('image/')) {
+      setNotification({ message: "Por favor, selecione um arquivo de imagem válido (PNG, JPG, WEBP).", type: 'error' });
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+      return;
+    }
+
+    // Limite de 15MB
+    if (file.size > 15 * 1024 * 1024) {
+      setNotification({ message: "A imagem selecionada é muito grande (máximo 15MB).", type: 'error' });
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+      return;
+    }
+
+    setIsAvatarLoading(true);
+    try {
+      const compressed = await compressImage(file, 400);
+      updateField('avatarUrl', compressed);
+      setNotification({ message: "Foto do currículo atualizada com sucesso!", type: 'success' });
+    } catch (err: any) {
+      console.error("Erro ao processar imagem:", err);
+      setNotification({ message: err?.message || "Erro ao processar a foto. Tente outra imagem.", type: 'error' });
+    } finally {
+      setIsAvatarLoading(false);
+      // Sempre limpar o input para permitir selecionar o mesmo arquivo novamente sem travar
+      if (avatarInputRef.current) {
+        avatarInputRef.current.value = '';
       }
+      if (e.target) {
+        e.target.value = '';
+      }
+    }
+  };
+
+  const handleRemoveAvatar = () => {
+    updateField('avatarUrl', '');
+    setNotification({ message: "Foto removida do currículo.", type: 'success' });
+    if (avatarInputRef.current) {
+      avatarInputRef.current.value = '';
     }
   };
 
@@ -418,6 +483,14 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ resumeId, onBack, initialTe
               <span className="material-symbols-outlined text-[20px] group-hover:scale-110 transition-transform">upload_file</span>
               <span className="text-xs font-bold uppercase">Importar PDF</span>
             </button>
+            <button 
+              onClick={generatePdfAction}
+              className="hidden sm:flex items-center gap-2 px-4 py-2 bg-forest-surface border border-forest-border rounded-xl text-stone-300 hover:text-primary hover:border-primary/50 transition-all group"
+              title="Exportar ou Imprimir PDF"
+            >
+              <span className="material-symbols-outlined text-primary text-[20px] group-hover:scale-110 transition-transform">picture_as_pdf</span>
+              <span className="text-xs font-bold uppercase">Exportar PDF</span>
+            </button>
             <div className="hidden lg:flex items-center gap-2 mr-4 px-3 py-1.5 bg-forest-deep rounded-lg border border-forest-border">
                <span className="material-symbols-outlined text-primary text-[18px]">auto_awesome</span>
                <span className="text-[10px] font-bold text-stone-400 uppercase">Salvamento Automático Ativo</span>
@@ -514,24 +587,80 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ resumeId, onBack, initialTe
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 {/* Avatar */}
-                <div className="flex flex-col items-center gap-4">
-                  <div className="w-32 h-32 rounded-2xl border-2 border-dashed border-forest-border overflow-hidden relative group cursor-pointer bg-forest-deep flex items-center justify-center">
-                    {resumeData.avatarUrl ? (
-                      <img src={resumeData.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                <div className="flex flex-col items-center gap-3">
+                  <input 
+                    ref={avatarInputRef}
+                    id="avatar-file-input"
+                    type="file" 
+                    accept="image/png,image/jpeg,image/jpg,image/webp" 
+                    onChange={handleAvatarChange}
+                    className="sr-only" 
+                  />
+
+                  <div 
+                    id="avatar-upload-trigger"
+                    onClick={() => !isAvatarLoading && avatarInputRef.current?.click()}
+                    onKeyDown={(e) => {
+                      if ((e.key === 'Enter' || e.key === ' ') && !isAvatarLoading) {
+                        e.preventDefault();
+                        avatarInputRef.current?.click();
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    title="Clique para alterar a foto"
+                    className="w-32 h-32 rounded-2xl border-2 border-dashed border-forest-border hover:border-primary overflow-hidden relative group cursor-pointer bg-forest-deep flex items-center justify-center transition-all shadow-inner focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    {isAvatarLoading ? (
+                      <div className="flex flex-col items-center justify-center gap-2 p-2">
+                        <span className="material-symbols-outlined animate-spin text-primary text-3xl">sync</span>
+                        <span className="text-[10px] text-white font-medium">Processando...</span>
+                      </div>
+                    ) : resumeData.avatarUrl ? (
+                      <>
+                        <img src={resumeData.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity pointer-events-none">
+                          <span className="material-symbols-outlined text-white text-2xl mb-1">photo_camera</span>
+                          <span className="text-white text-[11px] font-bold">Alterar Foto</span>
+                        </div>
+                      </>
                     ) : (
-                      <span className="material-symbols-outlined text-4xl text-stone-600">add_a_photo</span>
+                      <div className="flex flex-col items-center justify-center gap-1 text-stone-500 group-hover:text-primary transition-colors pointer-events-none">
+                        <span className="material-symbols-outlined text-4xl">add_a_photo</span>
+                        <span className="text-[11px] font-medium">Adicionar Foto</span>
+                      </div>
                     )}
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      onChange={handleAvatarChange}
-                      className="absolute inset-0 opacity-0 cursor-pointer" 
-                    />
-                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                      <span className="text-white text-xs font-bold">Alterar Foto</span>
-                    </div>
                   </div>
-                  <p className="text-[10px] text-stone-500 text-center uppercase font-bold">Recomendado: 400x400px</p>
+
+                  {/* Ações da Foto */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      id="btn-choose-avatar"
+                      type="button"
+                      disabled={isAvatarLoading}
+                      onClick={() => avatarInputRef.current?.click()}
+                      className="text-xs text-primary hover:text-primary/80 font-semibold px-2.5 py-1 rounded-md bg-primary/10 hover:bg-primary/20 transition-colors flex items-center gap-1 disabled:opacity-50"
+                    >
+                      <span className="material-symbols-outlined text-sm">upload</span>
+                      {resumeData.avatarUrl ? 'Alterar' : 'Carregar'}
+                    </button>
+
+                    {resumeData.avatarUrl && (
+                      <button
+                        id="btn-remove-avatar"
+                        type="button"
+                        disabled={isAvatarLoading}
+                        onClick={handleRemoveAvatar}
+                        title="Remover foto do currículo"
+                        className="text-xs text-stone-400 hover:text-red-400 font-semibold px-2.5 py-1 rounded-md bg-stone-800/60 hover:bg-red-500/10 transition-colors flex items-center gap-1 disabled:opacity-50"
+                      >
+                        <span className="material-symbols-outlined text-sm">delete</span>
+                        Remover
+                      </button>
+                    )}
+                  </div>
+
+                  <p className="text-[10px] text-stone-500 text-center uppercase font-bold">Recomendado: 400x400px (PNG, JPG)</p>
                 </div>
 
                 {/* Campos de Texto */}
