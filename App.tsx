@@ -28,14 +28,12 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     if (profile) {
       setUserInfo(profile);
-      if (view === ViewState.AUTH) {
-        setView(ViewState.DASHBOARD);
-      }
+      setView(prev => (prev === ViewState.AUTH ? ViewState.DASHBOARD : prev));
     } else if (!loading) {
       setUserInfo({ name: "Visitante", avatar: DEFAULT_AVATAR, email: "" });
       setView(ViewState.AUTH);
     }
-  }, [profile, loading, view]);
+  }, [profile, loading]);
 
   const handleLogout = async () => {
     if (!isConfigured) {

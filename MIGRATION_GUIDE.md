@@ -1,44 +1,171 @@
-# Guia de Migração - CVFacil.NG para Hostinger
+# Guia Oficial de Migração e Implantação - CVFacil.NG na VPS Hostinger
 
-Este documento detalha a abordagem técnica para hospedar o aplicativo CVFacil.NG na infraestrutura da Hostinger.
+Este documento estabelece o procedimento operacional padrão para implantar, migrar e gerenciar a aplicação **CVFacil.NG** na infraestrutura de **VPS (Virtual Private Server) da Hostinger** (IP: `69.62.87.38`).
 
-## 1. Arquitetura do Aplicativo
-O CVFacil.NG opera como uma **Single Page Application (SPA)** estática.
-- **Dados:** Persistidos no navegador do usuário (`localStorage`).
-- **Dependências:** Carregadas via CDN ou empacotadas no build.
-- **Custo:** Baixo (funciona em planos "Single Web Hosting" ou superiores).
+---
 
-## 2. Preparação (Build)
-Antes de enviar para a Hostinger, o código React/TypeScript (`.tsx`) precisa ser convertido para HTML/CSS/JS que os navegadores entendem.
+## 1. Arquitetura em Produção na VPS
+- **Sistema Operacional:** Ubuntu 22.04 / 24.04 LTS ou Debian 12
+- **Runtime:** Node.js v20 LTS
+- **Gerenciador de Processos:** PM2 (com cluster mode / auto-restart no boot do sistema)
+- **Porta Interna da Aplicação:** `3000` (Next.js Standalone/Server)
+- **Servidor Web & Proxy Reverso:** Nginx (Porta 80 HTTP / 443 HTTPS com SSL Let's Encrypt)
+- **Repositório Oficial:** `https://github.com/claudiofxbr/CVFacil.NG-01.git`
+- **Diretório da Aplicação:** `/var/www/cvfacil-ng`
 
-1. No seu terminal local (onde o projeto está), execute:
-   ```bash
-   npm run build
-   ```
-   *Isso criará uma pasta chamada `build` ou `dist` na raiz do projeto.*
+---
 
-2. Verifique o conteúdo desta pasta. Ela deve conter:
-   - `index.html`
-   - Uma pasta `assets` ou `static` (com arquivos .js e .css).
-   - O arquivo `.htaccess` (veja a seção 4).
+## 2. Preparação Prévia da VPS (Etapa Única)
 
-## 3. Upload para a Hostinger
+Acesse a VPS via SSH:
+```bash
+ssh root@69.62.87.38
+```
 
-1. Acesse o **hPanel** da Hostinger.
-2. Vá para **Gerenciador de Arquivos** (File Manager).
-3. Navegue até a pasta **`public_html`**.
-4. **Importante:** Apague qualquer arquivo `default.php` que estiver lá.
-5. Faça o upload de **todo o conteúdo** de dentro da sua pasta `build` ou `dist` gerada no passo anterior.
-   - *Nota:* Não suba a pasta `build` inteira, suba os arquivos que estão *dentro* dela para a raiz do `public_html`.
+Atualize os pacotes do sistema e instale os utilitários essenciais:
+```bash
+apt-get update && apt-get upgrade -y
+apt-get install -y curl wget git unzip nginx ufw
+```
 
-## 4. Configuração do Servidor (.htaccess)
-O arquivo `.htaccess` incluído no projeto é vital. Ele informa ao servidor da Hostinger que todas as requisições devem ser gerenciadas pelo `index.html` do React. Certifique-se de que este arquivo esteja na pasta `public_html` junto com os outros.
+Instale o **Node.js 20 LTS** e o **PM2**:
+```bash
+curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+apt-get install -y nodejs
+npm install -g pm2
+```
 
-## 5. Variáveis de Ambiente
-Como identificado na análise, este projeto **não requer** configuração de variáveis de ambiente no painel da Hostinger, pois não utiliza chaves de API de backend (como Firebase ou AWS) neste momento.
+Configure o Firewall (UFW) para permitir tráfego essencial:
+```bash
+ufw allow OpenSSH
+ufw allow 'Nginx Full'
+ufw --force enable
+```
 
-## 6. Solução de Problemas Comuns
+---
 
-- **Tela Branca:** Geralmente causado por caminhos de arquivo errados. Verifique se o `index.html` está carregando os scripts corretamente.
-- **Erro 404 ao recarregar:** Significa que o arquivo `.htaccess` está faltando ou mal configurado.
-- **Imagens quebradas:** Certifique-se de que a pasta de imagens foi enviada junto com o build.
+## 3. Execução da Migração da Aplicação
+
+### Opção A: Execução 100% Automatizada em 1 Comando (Recomendada)
+Para instalar ou atualizar a versão oficial do CVFacil.NG com isolamento total do PortalCursos.NG, configuração do Nginx, compilação e PM2 autostart, execute diretamente no terminal da VPS:
+
+```bash
+curl -sSL https://ais-pre-eaqnml5q5zvrnb7irfi4br-56923805413.us-east1.run.app/install-cvfacil-hostinger.sh | bash
+```
+
+*O script realiza todas as etapas de forma automática: checa privilégios de root, garante isolamento do PortalCursos.NG, instala Node.js 20 LTS e PM2 se necessário, cria backup preventivo, extrai a versão oficial limpa, gera o build standalone, registra no PM2 e testa a conectividade.*
+
+---
+
+### Opção B: Execução Manual com o Script Local
+Caso já tenha clonado o repositório ou baixado o script para a máquina:
+
+```bash
+# 1. Crie o diretório e clone o projeto
+mkdir -p /var/www/cvfacil-ng && cd /var/www/cvfacil-ng
+git clone https://github.com/claudiofxbr/CVFacil.NG-01.git .
+
+# 2. Execute o setup inicial automatizado
+bash scripts/install-cvfacil-hostinger.sh
+```
+
+O script irá automaticamente:
+- Validar as versões do Node.js e PM2.
+- Criar o arquivo `.env` de produção.
+- Executar `npm ci` para instalar todas as dependências com lockfile.
+- Gerar o build de produção Next.js otimizado (`npm run build`).
+- Registrar o processo no PM2 com inicialização automática (`pm2 save` e `pm2 startup`).
+
+---
+
+### Opção B: Implantação Imediata via Pacote Zip (Sem dependência de Git)
+Caso queira migrar imediatamente os arquivos já empacotados pelo AI Studio:
+
+```bash
+mkdir -p /var/www/cvfacil-ng && cd /var/www/cvfacil-ng
+curl -sSL -o app.zip https://ais-pre-eaqnml5q5zvrnb7irfi4br-56923805413.us-east1.run.app/cvfacil-ng.zip
+unzip -o app.zip && rm app.zip
+npm install --production=false
+npm run build
+pm2 start npm --name "cvfacil-ng" -- start -- -p 3000
+pm2 save
+pm2 startup systemd -u root --hp /root
+```
+
+---
+
+## 4. Configuração do Proxy Reverso Nginx
+
+Para que a aplicação seja acessada diretamente pelo IP da VPS ou domínio na porta 80/443:
+
+Crie o arquivo de configuração do Nginx:
+```bash
+nano /etc/nginx/sites-available/cvfacil-ng
+```
+
+Insira o conteúdo:
+```nginx
+server {
+    listen 80;
+    server_name 69.62.87.38 seu-dominio.com.br www.seu-dominio.com.br;
+
+    client_max_body_size 20M;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+Ative o site e reinicie o Nginx:
+```bash
+ln -sf /etc/nginx/sites-available/cvfacil-ng /etc/nginx/sites-enabled/
+rm -f /etc/nginx/sites-enabled/default
+nginx -t && systemctl restart nginx
+```
+
+---
+
+## 5. Configuração de Certificado SSL Gratuito (HTTPS)
+
+Se possuir um domínio apontado para o IP `69.62.87.38`:
+```bash
+apt-get install -y certbot python3-certbot-nginx
+certbot --nginx -d seu-dominio.com.br -d www.seu-dominio.com.br
+```
+
+---
+
+## 6. Rotina de Manutenção e Atualizações Futuras
+
+Para publicar atualizações na VPS após fazer commits no repositório:
+```bash
+cd /var/www/cvfacil-ng
+bash scripts/deploy-vps.sh deploy
+```
+Ou via comandos diretos:
+```bash
+cd /var/www/cvfacil-ng
+git pull origin main
+npm ci
+npm run build
+pm2 reload cvfacil-ng --update-env
+```
+
+---
+
+## 7. Comandos de Diagnóstico e Monitoramento
+
+- **Status da Aplicação:** `pm2 status`
+- **Logs em Tempo Real:** `pm2 logs cvfacil-ng`
+- **Uso de Recursos:** `pm2 monit`
+- **Status do Nginx:** `systemctl status nginx`
+- **Logs de Erro do Nginx:** `tail -f /var/log/nginx/error.log`

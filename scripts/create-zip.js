@@ -27,10 +27,10 @@ archive.on('error', function(err) {
 
 archive.pipe(output);
 
-// Append files from current directory, excluding node_modules and .git
+// Append files from current directory, excluding node_modules, .git, .next, and existing zip archives
 archive.glob('**/*', {
   cwd: path.join(__dirname, '..'),
-  ignore: ['node_modules/**', '.git/**', 'public/**', 'scripts/**']
+  ignore: ['node_modules/**', '.git/**', '.next/**', 'public/*.zip', 'public/*.ZIP']
 });
 
 archive.finalize();

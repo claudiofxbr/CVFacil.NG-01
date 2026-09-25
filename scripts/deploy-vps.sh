@@ -11,7 +11,7 @@ set -eo pipefail
 # Configurações do Projeto
 APP_NAME="cvfacil-ng"
 APP_DIR="/var/www/cvfacil-ng"
-REPO_URL="https://github.com/SEU_USUARIO_GITHUB/cvfacil-ng.git"
+REPO_URL="https://github.com/claudiofxbr/CVFacil.NG-01.git"
 NODE_VERSION="20"
 PORT="3000"
 
