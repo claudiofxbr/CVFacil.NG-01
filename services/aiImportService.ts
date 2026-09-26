@@ -94,27 +94,28 @@ export const importResumeFromPdf = async (
 
   // 3. Tentar chamada via servidor (/api/gemini/import-pdf)
   let rawText = '';
+  let serverErrorMessage = '';
   try {
     const apiRes = await fetch('/api/gemini/import-pdf', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ base64Data })
     });
-    if (apiRes.ok) {
-      const jsonRes = await apiRes.json();
-      if (jsonRes.data) {
-        rawText = JSON.stringify(jsonRes.data);
-      }
+    const jsonRes = await apiRes.json().catch(() => null);
+    if (apiRes.ok && jsonRes?.data) {
+      rawText = JSON.stringify(jsonRes.data);
+    } else if (jsonRes?.error) {
+      serverErrorMessage = jsonRes.error;
     }
   } catch (err) {
-    console.warn("Rota /api/gemini/import-pdf indisponível, utilizando fallback client-side:", err);
+    console.warn("Rota /api/gemini/import-pdf falhou:", err);
   }
 
   if (!rawText) {
     // Fallback Client-side Gemini Call
     const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      throw new Error("Chave de API não encontrada. Por favor, verifique se a variável de ambiente da API Gemini está configurada.");
+      throw new Error(serverErrorMessage || "Chave de API não configurada. Por favor, configure GEMINI_API_KEY no arquivo .env da VPS.");
     }
 
     const ai = new GoogleGenAI({ apiKey });
@@ -196,7 +197,7 @@ export const importResumeFromPdf = async (
     while (retries < MAX_RETRIES) {
       try {
         const aiPromise = ai.models.generateContent({
-          model: 'gemini-3.6-flash', 
+          model: 'gemini-3.8-flash', 
           contents: {
             parts: [
               { inlineData: { mimeType: 'application/pdf', data: base64Data } },

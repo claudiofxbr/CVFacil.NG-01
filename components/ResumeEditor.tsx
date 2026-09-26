@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initialResumeData, generateUUID, compressImage, templates } from '../services/resumeService';
 import { ResumeData, Experience, Education, Skill, Language, User } from '../types';
-import { supabase } from '../supabase';
+import { neonResumeService } from '../services/neonResumeService';
 import { useAuth } from './AuthProvider';
 import ResumePreview from './ResumePreview';
 import { improveTextWithAI, suggestSkillsWithAI } from '../services/aiEditorService';
 import { importResumeFromPdf } from '../services/aiImportService';
+import { importResumeFromPdfV2 } from '../services/aiImportServiceV2';
 
 enum OperationType {
   CREATE = 'create',
@@ -24,7 +25,7 @@ interface ResumeEditorProps {
 }
 
 const ResumeEditor: React.FC<ResumeEditorProps> = ({ resumeId, onBack, initialTemplateId, userInfo }) => {
-  const { user, isConfigured } = useAuth();
+  const { user } = useAuth();
   const [resumeData, setResumeData] = useState<ResumeData>({
     ...initialResumeData,
     templateId: initialTemplateId || initialResumeData.templateId,
@@ -67,43 +68,54 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ resumeId, onBack, initialTe
 
   useEffect(() => {
     const loadResume = async () => {
-      if (!resumeId || !user) return;
+      if (!resumeId) return;
+
+      // 1. Tentar carregar imediatamente do cache local síncrono para zero-delay
+      try {
+        const cachedCurrent = localStorage.getItem('cvfacil_current_editing_resume');
+        if (cachedCurrent) {
+          const parsed = JSON.parse(cachedCurrent);
+          if (parsed && (parsed.id === resumeId || !resumeId.startsWith('local-'))) {
+            setResumeData(parsed);
+          }
+        }
+        const localResumes = JSON.parse(localStorage.getItem('cvfacil_local_resumes') || '[]');
+        const found = localResumes.find((r: ResumeData) => r.id === resumeId);
+        if (found) {
+          setResumeData(found);
+        }
+      } catch (e) {
+        console.warn("Aviso ao ler cache local:", e);
+      }
 
       setIsLoading(true);
       try {
-        const isLocal = resumeId.startsWith('local-');
-        
-        if (isLocal || !isConfigured) {
-          const localResumes = JSON.parse(localStorage.getItem('cvfacil_local_resumes') || '[]');
-          const found = localResumes.find((r: ResumeData) => r.id === resumeId);
-          if (found) {
-            setResumeData(found);
-          } else {
-            setError("Currículo local não encontrado.");
+        // Carregar do Neon Postgres oficial (CVfacil.NG-01)
+        const res = await fetch(`/api/neon/resumes?id=${encodeURIComponent(resumeId)}`);
+        if (res.ok) {
+          const resData = await res.json();
+          if (resData.resume) {
+            setResumeData(resData.resume);
+            setIsLoading(false);
+            return;
           }
-          setIsLoading(false);
-          return;
         }
-
-        const { data, error } = await supabase
-          .from('resumes')
-          .select('*')
-          .eq('id', resumeId)
-          .single();
-
-        if (error) throw error;
-        if (data) {
-          setResumeData(data as ResumeData);
+        
+        // Fallback local se não encontrado no servidor
+        const localResumes = JSON.parse(localStorage.getItem('cvfacil_local_resumes') || '[]');
+        const found = localResumes.find((r: ResumeData) => r.id === resumeId);
+        if (found) {
+          setResumeData(found);
         }
       } catch (err: any) {
-        handleSupabaseError(err, OperationType.GET, `resumes/${resumeId}`);
+        console.error("Erro ao carregar do Neon:", err);
       } finally {
         setIsLoading(false);
       }
     };
 
     loadResume();
-  }, [resumeId, user, isConfigured]);
+  }, [resumeId]);
 
   const handleSave = async () => {
     if (!user) return;
@@ -111,38 +123,18 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ resumeId, onBack, initialTe
     setError(null);
 
     try {
-      const isLocal = resumeId?.startsWith('local-') || !isConfigured;
       const dataToSave = {
         ...resumeData,
-        id: resumeData.id || (isLocal ? `local-${generateUUID()}` : generateUUID()),
+        id: resumeData.id || generateUUID(),
         lastUpdated: new Date().toISOString(),
         userId: user.id
       };
 
-      if (isLocal) {
-        const localResumes = JSON.parse(localStorage.getItem('cvfacil_local_resumes') || '[]');
-        const index = localResumes.findIndex((r: ResumeData) => r.id === dataToSave.id);
-        
-        if (index >= 0) {
-          localResumes[index] = dataToSave;
-        } else {
-          localResumes.push(dataToSave);
-        }
-        
-        localStorage.setItem('cvfacil_local_resumes', JSON.stringify(localResumes));
-        setResumeData(dataToSave);
-        setNotification({ message: "Currículo salvo com sucesso!", type: 'success' });
-        return;
-      }
-
-      const { error } = await supabase
-        .from('resumes')
-        .upsert(dataToSave);
-
-      if (error) throw error;
-
+      await neonResumeService.saveResume(dataToSave, {
+        changeSummary: 'Edição direta no ResumeEditor'
+      });
       setResumeData(dataToSave);
-      setNotification({ message: "Currículo salvo com sucesso!", type: 'success' });
+      setNotification({ message: "Currículo salvo com sucesso no Neon!", type: 'success' });
     } catch (err: any) {
       handleSupabaseError(err, OperationType.WRITE, 'resumes');
     } finally {
@@ -408,17 +400,33 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ resumeId, onBack, initialTe
     if (!file) return;
 
     setIsLoading(true);
+    setNotification({ message: "Analisando currículo com Inteligência Artificial...", type: 'loading' });
     try {
-      const importedData = await importResumeFromPdf(file, user?.id || 'visitante', userInfo.avatar);
-      setResumeData(prev => ({
+      let importedData: ResumeData;
+      try {
+        importedData = await importResumeFromPdfV2(file, user?.id || 'visitante', userInfo.avatar);
+      } catch (v2Err) {
+        console.warn("Fallback para fluxo V1:", v2Err);
+        importedData = await importResumeFromPdf(file, user?.id || 'visitante', userInfo.avatar);
+      }
+
+      const mergedResume: ResumeData = {
         ...importedData,
-        id: prev.id, // Manter o ID atual se estiver editando
-        templateId: prev.templateId,
-        themeMode: prev.themeMode
-      }));
+        id: resumeData.id || importedData.id,
+        userId: user?.id || 'visitante',
+        templateId: resumeData.templateId || importedData.templateId,
+        themeMode: resumeData.themeMode || importedData.themeMode
+      };
+
+      setResumeData(mergedResume);
+      await neonResumeService.saveResume(mergedResume);
+
       setError(null);
+      setNotification({ message: "Currículo importado e atualizado com sucesso!", type: 'success' });
     } catch (err: any) {
+      console.error("Erro na importação pelo editor:", err);
       setError(`Erro na importação: ${err.message}`);
+      setNotification({ message: `Erro na importação: ${err.message}`, type: 'error' });
     } finally {
       setIsLoading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';

@@ -6,8 +6,41 @@ interface ResumePreviewProps {
 }
 
 const ResumePreview: React.FC<ResumePreviewProps> = ({ data }) => {
-  const { templateId, themeMode } = data;
+  if (!data) return null;
+
+  // Normalização e autocura dos dados para garantir que o preview NUNCA falhe ou dê tela preta/branca
+  const safeExperiences = Array.isArray(data.experiences) ? data.experiences : [];
+  const safeEducation = Array.isArray(data.education) ? data.education : [];
+  const safeSkills = Array.isArray(data.skills) ? data.skills : [];
+  const safeLanguages = Array.isArray(data.languages) ? data.languages : [];
+  const safeHobbies = Array.isArray(data.hobbies) ? data.hobbies : [];
+
+  // Mapeamento e cura de templateId (se vier 'modern-slate' ou desconhecido, normaliza para 'original')
+  const validTemplates = ['original', 'blue', 'red', 'green', 'purple', 'black', 'magenta', 'violet', 'gray', 'lilac'];
+  const resolvedTemplateId = (!data.templateId || !validTemplates.includes(data.templateId)) ? 'original' : data.templateId;
+
+  const safeData: ResumeData = {
+    ...data,
+    fullName: data.fullName || 'Nome do Candidato',
+    role: data.role || 'Cargo Profissional',
+    summary: data.summary || 'Resumo profissional não informado.',
+    email: data.email || '',
+    phone: data.phone || '',
+    linkedin: data.linkedin || '',
+    portfolio: data.portfolio || '',
+    avatarUrl: data.avatarUrl || '',
+    experiences: safeExperiences,
+    education: safeEducation,
+    skills: safeSkills,
+    languages: safeLanguages,
+    hobbies: safeHobbies,
+    templateId: resolvedTemplateId,
+    themeMode: data.themeMode || 'dark'
+  };
+
+  const { templateId, themeMode } = safeData;
   const isDark = themeMode === 'dark';
+  data = safeData;
 
   // Helper styles for 3x4 photo frame standard
   const photoFrameStyle = "aspect-[3/4] object-cover object-top";
@@ -83,7 +116,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ data }) => {
             </div>
             <div className="lg:col-span-4 space-y-10">
               <section>
-                <h2 className={`text-sm font-display font-bold uppercase tracking-[0.2em] mb-6 ${isDark ? 'text-stone-500' : 'text-stone-400'}`}>Experiências</h2>
+                <h2 className={`text-sm font-display font-bold uppercase tracking-[0.2em] mb-6 ${isDark ? 'text-stone-500' : 'text-stone-400'}`}>Habilidades</h2>
                 <div className="space-y-5">
                   {data.skills.map((skill) => (
                     <div key={skill.id}>
@@ -149,7 +182,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ data }) => {
             </div>
           </div>
           <div className="space-y-4">
-            <h3 className="font-bold text-blue-200 uppercase tracking-widest border-b border-blue-700 pb-2">Experiências</h3>
+            <h3 className="font-bold text-blue-200 uppercase tracking-widest border-b border-blue-700 pb-2">Habilidades</h3>
             {data.skills.map(s => (
               <div key={s.id} className="text-sm">
                 <div className="flex justify-between mb-1"><span>{s.name}</span><span>{s.level}%</span></div>
@@ -435,7 +468,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ data }) => {
                     <p className="text-sm leading-relaxed text-justify opacity-80">{data.summary}</p>
                  </div>
                  <div className="mb-8">
-                    <h3 className={`font-bold uppercase text-xs tracking-widest mb-3 ${sidebarTitle}`}>Experiências</h3>
+                    <h3 className={`font-bold uppercase text-xs tracking-widest mb-3 ${sidebarTitle}`}>Habilidades</h3>
                     <div className="flex flex-wrap gap-2">
                        {data.skills.map(s => (
                           <span key={s.id} className={`px-3 py-1 rounded-full text-xs font-bold border ${isDark ? 'bg-indigo-900 text-indigo-200 border-indigo-700' : 'bg-indigo-100 text-indigo-700 border-indigo-200'}`}>{s.name}</span>
@@ -559,7 +592,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ data }) => {
                  </div>
                  
                  <div>
-                    <h3 className={`font-bold text-xl mb-4 border-b pb-2 ${divider}`}>EXPERIÊNCIAS</h3>
+                    <h3 className={`font-bold text-xl mb-4 border-b pb-2 ${divider}`}>HABILIDADES</h3>
                     <ul className={`list-disc list-inside space-y-1 ${subText}`}>
                        {data.skills.map(s => <li key={s.id}>{s.name}</li>)}
                     </ul>
@@ -731,7 +764,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ data }) => {
                  </div>
                  
                  <div className={`border-l pl-16 ${isDark ? 'border-violet-800' : 'border-violet-100'}`}>
-                    <h2 className={`text-2xl font-bold mb-8 ${isDark ? 'text-white' : 'text-violet-950'}`}>Educação & Experiências</h2>
+                    <h2 className={`text-2xl font-bold mb-8 ${isDark ? 'text-white' : 'text-violet-950'}`}>Educação & Habilidades</h2>
                     <div className="space-y-6 mb-12">
                        {data.education.map(edu => (
                           <div key={edu.id}>
@@ -811,7 +844,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ data }) => {
                  </div>
                  
                  <div>
-                    <h3 className={`font-bold mb-2 uppercase text-xs ${sectionTitle}`}>Experiências</h3>
+                    <h3 className={`font-bold mb-2 uppercase text-xs ${sectionTitle}`}>Habilidades</h3>
                     <ul className={`space-y-1 ${subText}`}>
                        {data.skills.map(s => <li key={s.id}>{s.name}</li>)}
                     </ul>
@@ -962,8 +995,27 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ data }) => {
      )
   }
 
-  // Fallback to original if ID not found
-  return null; 
+  // Fallback seguro: se por qualquer motivo não coincidir, renderiza o template 'original' com os dados normalizados
+  const bgClass = isDark ? "bg-forest-base text-stone-200" : "bg-amber-50 text-stone-800";
+  const headerTitleClass = isDark ? "text-white" : "text-stone-900";
+  const textMuted = isDark ? "text-stone-400" : "text-stone-600";
+
+  return (
+    <div className={`w-full font-sans p-8 md:p-12 shadow-2xl ${bgClass}`}>
+      <div className="max-w-4xl mx-auto space-y-8">
+        <header className="flex flex-col md:flex-row gap-6 items-center md:items-start">
+          <div className="text-center md:text-left flex-1">
+            <h1 className={`text-4xl font-display font-bold mb-2 uppercase ${headerTitleClass}`}>{data.fullName}</h1>
+            <p className="text-xl text-primary font-medium mb-4">{data.role}</p>
+            <p className={`${textMuted} leading-relaxed text-sm`}>{data.summary}</p>
+          </div>
+        </header>
+        <div className="p-4 rounded-xl border border-forest-border flex flex-wrap gap-4 text-xs">
+          <span>{data.email}</span> • <span>{data.phone}</span> • <span>{data.linkedin}</span>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default ResumePreview;

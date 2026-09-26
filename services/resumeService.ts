@@ -108,61 +108,69 @@ export const initialResumeData: ResumeData = {
   themeMode: 'dark', // Padrão Escuro
   lastUpdated: new Date().toISOString(),
   isPinned: false,
-  fullName: "MARIA FERNANDES",
-  role: "Senior UX/UI Designer & Product Strategist",
-  email: "maria.fernandes@email.com",
-  phone: "+55 11 98765-4321",
-  linkedin: "linkedin/mariafernandes",
-  portfolio: "portfolio.com",
-  summary: "Designer UX/UI com mais de 8 anos de experiência na criação de interfaces intuitivas e centradas no usuário para aplicações web e mobile. Apaixonada por resolver problemas complexos através do design, com forte habilidade em pesquisa, prototipagem e colaboração com equipes de desenvolvimento.",
+  fullName: "CLAUDIO FREITAS XAVIER",
+  role: "Analista de Sistemas / Suporte / IA",
+  email: "diretor@xavierbr.net",
+  phone: "(71) 99113-7633",
+  linkedin: "https://www.linkedin.com/in/claudio-xavier-117816b6",
+  portfolio: "http://xavierbr.net",
+  summary: "Profissional com mais de 18 anos de sólida experiência em Tecnologia da Informação, especializado em desenvolvimento e suporte a CPD, implementação e gestão de redes e sistemas em ambientes corporativos. Atualmente atua como Diretor Presidente de empresa de soluções em TI.",
   avatarUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuBKfd51M6l8RpIQ_jTNw4Id5iOQ4vFkIleM5-ZmYk_pFKjgVZIpKcrSmIL95hwsOwAuCYNwSakYFmOtdUm4J2ikNQCW2kPSOg31LbvXUjn3Oqk-y19GujNITmAgNo0MfuoU0Jtk0KX7g9VR02z_5_M1bQ7M77DwZJsqG6DdHggZuJvcIkoJEuCaKL-ucHhT38o-byQPcrC81timsrnGB1WEK1wJe-HdoJusyqVPpS8k8k9XlzwyX3I_epHxVqT7BSAOZuK-ghfPgsO2",
   experiences: [
     {
       id: "1",
-      role: "UX/UI Designer Sênior",
-      company: "Tech Solutions Inc.",
-      period: "2020 - PRESENTE",
-      description: "Liderou o redesign completo da plataforma SaaS, aumentando retenção em 20%. Conduziu pesquisas com usuários e testes de usabilidade para informar decisões."
+      role: "Diretor Presidente",
+      company: "xavier.net.br",
+      period: "11/2020 - Atual",
+      description: "xavier.net.br – Salvador, Bahia Gestor de Projetos de TI e Novos Negócios Gestão de Contratos e Parcerias: Administração estratégica de contratos corporativos firmados pela xavier.net.br, atuando diretamente na retenção de clientes, mediação de conflitos e garantia de rentabilidade e continuidade das operações vigentes. Prospecção e Expansão Comercial: Liderança em prospecção ativa de clientes no mercado regional, mapeamento de oportunidades comerciais e apresentação executiva do portfólio de soluções digitais e aplicativos da empresa. Ciclo de Contratação e Implantação: Gerenciamento ponta a ponta dos trâmites burocráticos para assinatura de novos acordos e supervisão técnica da implantação dos projetos fechados. Inovação Aplicada (IA): Integração sinérgica dos conceitos da pós-graduação em Inteligência Artificial para Desenvolvedores no portfólio da empresa, promovendo o desenvolvimento e a arquitetura de soluções que utilizam modelos de linguagem (LLMs), engenharia de prompts e automação inteligente para agregar valor comercial aos produtos dos novos clientes."
     },
     {
       id: "2",
-      role: "Designer de Produto",
-      company: "Creative Agency",
-      period: "2018 - 2020",
-      description: "Criou design systems escaláveis para múltiplos clientes de e-commerce. Desenvolveu interfaces mobile focadas em conversão fluida para iOS e Android."
+      role: "Programador de Sistemas",
+      company: "Fundação Bahiana para desenvolvimento das ciências",
+      period: "05/1993 - 05/2011",
+      description: "Responsável pelos anteprojetos, projetos e implementação de redes Windows Server 2008 R2, Windows 2012 e Linux. Configuração e administração das redes WiFi em secretarias escolares e laboratórios de informática. Gerenciamento dos servidores de e-mail Microsoft corporativo da FBDC. Instalação e configuração dos servidores HP Proliant em formato torre e slim. Desenvolvimento e implementação de novos projetos tecnológicos para a instituição. Implantação e gerenciamento do setor de manutenção das redes de computadores e periféricos. Desenvolvimento e implantação do sistema automatizado de chamada e controle de manutenção de computadores. Execução dos projetos em três campi da FBDC na cidade de Salvador, Bahia."
     }
   ],
   education: [
     {
       id: "1",
-      degree: "Design Gráfico",
-      institution: "Univ. Federal de Design",
-      year: "2014 - 2018",
-      type: "Bacharelado"
+      degree: "Pós-graduação em Inteligência Artificial para Devs.",
+      institution: "Faculdade Unyleya",
+      year: "04/2026 - 12/2026",
+      type: "Extensão"
     },
     {
       id: "2",
-      degree: "User Experience",
-      institution: "UX Academy Online",
-      year: "2019",
-      type: "Certificação"
+      degree: "CTS em Análise e Desenvolvimento de Sistemas",
+      institution: "POLO UNOPAR BELÉM - I - FAMAC - PA",
+      year: "08/2016 - 06/2020",
+      type: "Bacharelado"
     }
   ],
   skills: [
-    { id: "1", name: "UI/UX Design", level: 95 },
-    { id: "2", name: "Figma & Adobe XD", level: 100 },
-    { id: "3", name: "Prototipagem", level: 90 },
-    { id: "4", name: "JavaScript / React", level: 75 }
+    { id: "1", name: "ADMINISTRAÇÃO DE REDES WINDOWS E LINUX", level: 90 },
+    { id: "2", name: "IMPLANTAÇÃO E GERENCIAMENTO DE PROJETOS TI", level: 82 },
+    { id: "3", name: "GESTÃO DE CONTRATOS E RELACIONAMENTO COM CLIENTES", level: 80 },
+    { id: "4", name: "MANUTENÇÃO DE REDES E PERIFÉRICOS", level: 80 },
+    { id: "5", name: "DESENVOLVIMENTO E IMPLEMENTAÇÃO DE SISTEMAS AUTOMATIZADOS", level: 80 },
+    { id: "6", name: "CONFIGURAÇÃO E GERENCIAMENTO DE SERVIDORES HP PROLIANT", level: 80 },
+    { id: "7", name: "DESENVOLVIMENTO COM BORLAND DELPHI", level: 75 },
+    { id: "8", name: "PROSPECÇÃO COMERCIAL", level: 75 },
+    { id: "9", name: "PROGRAMAÇÃO DE BANCO DE DADOS", level: 75 },
+    { id: "10", name: "SEGURANÇA DE REDES E FIREWALL", level: 75 },
+    { id: "11", name: "ANALISTA INTELIGÊNCIA ARTIFICIAL - PÓS-GRADUAÇÃO", level: 80 }
   ],
   languages: [
-    { id: "1", name: "Português", level: "Nativo" },
-    { id: "2", name: "Inglês", level: "C2" },
-    { id: "3", name: "Espanhol", level: "B1" }
+    { id: "1", name: "Português", level: "Fluente / Nativo" },
+    { id: "2", name: "Inglês", level: "Avançado" },
+    { id: "3", name: "Espanhol", level: "Básico" }
   ],
   hobbies: [
-    "Fotografia",
-    "Viagens",
-    "Leitura Técnica",
-    "Ciclismo"
+    "Inteligência Artificial",
+    "estudar para adquirir conhecimento",
+    "Musculação",
+    "Praias",
+    "Viagens"
   ]
 };

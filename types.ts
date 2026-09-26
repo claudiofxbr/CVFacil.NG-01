@@ -47,6 +47,18 @@ export interface ResumeData {
   lastUpdated?: string;
   isPinned?: boolean;
   isImported?: boolean;
+  deletedAt?: string | null; // Data de envio para a lixeira temporária (soft delete)
+}
+
+export interface ResumeVersion {
+  id: string;
+  resumeId: string;
+  versionNumber: number;
+  title?: string;
+  data: ResumeData;
+  changedBy: string;
+  changeSummary?: string;
+  createdAt: string;
 }
 
 export interface TemplateOption {
