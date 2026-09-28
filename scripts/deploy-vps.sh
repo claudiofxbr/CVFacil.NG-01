@@ -13,7 +13,7 @@ APP_NAME="cvfacil-ng"
 APP_DIR="/var/www/cvfacil-ng"
 REPO_URL="https://github.com/claudiofxbr/CVFacil.NG-01.git"
 NODE_VERSION="20"
-PORT="3000"
+PORT="3003"
 
 # Cores para Saída dos Logs
 RED='\033[0;31m'

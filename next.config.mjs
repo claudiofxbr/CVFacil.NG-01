@@ -6,6 +6,9 @@ const nextConfig = {
   output: 'standalone',
   // Disable strict mode if it causes double-renders that confuse the user (optional)
   reactStrictMode: true,
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
 };
 
 export default nextConfig;

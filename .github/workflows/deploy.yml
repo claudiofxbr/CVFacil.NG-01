@@ -76,38 +76,49 @@ jobs:
 
             # 4. Configuração isolada do Nginx (NÃO TOCA NO PortalCursos.NG)
             if [ ! -f "/etc/nginx/sites-available/cvfacil-ng" ]; then
-              echo "🌐 Criando configuração isolada do Nginx para cvfacil.xavierbr-vps.tech..."
+              echo "🌐 Criando configuração isolada do Nginx..."
               cat << 'NGINX_EOF' > /etc/nginx/sites-available/cvfacil-ng
-            server {
-                listen 80;
-                server_name cvfacil.xavierbr-vps.tech;
+server {
+    listen 80;
+    server_name cvfacil.xavierbr-vps.tech;
+    return 301 https://$host$request_uri;
+}
 
-                client_max_body_size 30M;
+server {
+    listen 443 ssl http2;
+    server_name cvfacil.xavierbr-vps.tech;
 
-                location / {
-                    proxy_pass http://127.0.0.1:3000;
-                    proxy_http_version 1.1;
-                    proxy_set_header Upgrade $http_upgrade;
-                    proxy_set_header Connection 'upgrade';
-                    proxy_set_header Host $host;
-                    proxy_set_header X-Real-IP $remote_addr;
-                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                    proxy_set_header X-Forwarded-Proto $scheme;
-                    proxy_cache_bypass $http_upgrade;
-                }
-            }
-            NGINX_EOF
+    ssl_certificate /etc/letsencrypt/live/cvfacil.xavierbr-vps.tech/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/cvfacil.xavierbr-vps.tech/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    client_max_body_size 30M;
+
+    location / {
+        proxy_pass http://127.0.0.1:3003;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+NGINX_EOF
               ln -sf /etc/nginx/sites-available/cvfacil-ng /etc/nginx/sites-enabled/cvfacil-ng
               nginx -t && systemctl reload nginx || true
             fi
 
             # 5. Reinicialização segura no PM2
-            echo "🔄 Reiniciando serviço no PM2 com isolamento de porta 3000..."
+            echo "🔄 Reiniciando serviço no PM2 com isolamento de porta 3003..."
             if pm2 list | grep -q "cvfacil-ng"; then
               pm2 reload cvfacil-ng --update-env
             else
-              pm2 start npm --name "cvfacil-ng" -- start -- -p 3000
+              pm2 start npm --name "cvfacil-ng" -- run start -- -p 3003
               pm2 save
             fi
 
-            echo "✅ Deploy concluído com sucesso e aplicação online em https://cvfacil.xavierbr-vps.tech!"
+            echo "✅ Deploy concluído com sucesso e aplicação online!"

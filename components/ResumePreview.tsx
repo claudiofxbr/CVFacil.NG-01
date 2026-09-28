@@ -273,7 +273,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ data }) => {
          </header>
 
          <div className="max-w-3xl mx-auto font-sans">
-            <p className={`text-center mb-12 italic border-l-4 border-red-600 pl-4 py-2 ${quoteBg} ${subTextColor}`}>"{data.summary}"</p>
+            <p className={`text-center mb-12 italic border-l-4 border-red-600 pl-4 py-2 ${quoteBg} ${subTextColor}`}>&quot;{data.summary}&quot;</p>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                <div>
@@ -746,7 +746,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ data }) => {
               <div className="text-center mt-12 mb-16">
                  <h1 className={`text-4xl md:text-5xl font-bold mb-2 ${isDark ? 'text-white' : 'text-violet-950'}`}>{data.fullName}</h1>
                  <p className={`${roleColor} tracking-[0.3em] uppercase text-sm`}>{data.role}</p>
-                 <p className={`${subText} mt-4 max-w-2xl mx-auto text-sm italic`}>"{data.summary}"</p>
+                 <p className={`${subText} mt-4 max-w-2xl mx-auto text-sm italic`}>&quot;{data.summary}&quot;</p>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-16">
@@ -935,7 +935,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ data }) => {
               </header>
               
               <div className={`rounded-3xl p-8 shadow-sm mb-8 ${summaryBg}`}>
-                 <p className="text-center italic text-lg leading-relaxed">"{data.summary}"</p>
+                 <p className="text-center italic text-lg leading-relaxed">&quot;{data.summary}&quot;</p>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
