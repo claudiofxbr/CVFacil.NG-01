@@ -1,4 +1,5 @@
 import { sql } from '../../../../lib/neon';
+import { buildAccountEmail, isUniqueViolation } from '../../../../lib/accountIdentity';
 import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -201,12 +202,26 @@ export async function POST(req: NextRequest) {
     const resume = sanitizeResumePayload(rawResume);
 
     // 1. Garante que o usuário existe na tabela users e obtém informações de plano e créditos
-    const userRows = await sql`
-      INSERT INTO users (id, email, name, role)
-      VALUES (${resume.userId}, ${resume.email || `${resume.userId}@cvfacil.local`}, ${resume.fullName || 'Usuário'}, 'user')
-      ON CONFLICT (id) DO UPDATE SET updated_at = CURRENT_TIMESTAMP
-      RETURNING plan, credits, role;
-    `;
+    // O e-mail da conta NUNCA vem do conteúdo do currículo (ex.: e-mail extraído do PDF):
+    // se já pertencesse a outra linha de users, o INSERT quebrava em users_email_key (500).
+    let userRows: any[];
+    try {
+      userRows = await sql`
+        INSERT INTO users (id, email, name, role)
+        VALUES (${resume.userId}, ${buildAccountEmail(resume.userId)}, ${resume.fullName || 'Usuário'}, 'user')
+        ON CONFLICT (id) DO UPDATE SET updated_at = CURRENT_TIMESTAMP
+        RETURNING plan, credits, role;
+      `;
+    } catch (error: any) {
+      if (isUniqueViolation(error, 'users_email_key')) {
+        console.error("Conflito de identidade ao registrar usuário do currículo:", error);
+        return NextResponse.json({
+          error: "Não foi possível vincular o currículo à sua conta: já existe outro usuário com esta identidade.",
+          code: "USER_IDENTITY_CONFLICT"
+        }, { status: 409 });
+      }
+      throw error;
+    }
 
     const userProfile = userRows[0] || { plan: 'free', credits: 5, role: 'user' };
     const isAdmin = userProfile.role === 'admin';
