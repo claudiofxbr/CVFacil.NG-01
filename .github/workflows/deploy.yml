@@ -67,6 +67,25 @@ jobs:
             # 2. Atualiza o código fonte com o commit recém-enviado
             echo "📥 Sincronizando com a branch main do GitHub..."
             git fetch origin main
+
+            # TRAVA ANTI-VERSAO-ANTIGA: so avanca (fast-forward). Se origin/main nao contem o
+            # commit que esta em producao (mais antigo ou historia divergente), aborta SEM
+            # alterar nada -- instalar versao antiga do CVFacil.NG e proibido.
+            RUNNING_SHA=$(git rev-parse HEAD)
+            TARGET_SHA=$(git rev-parse origin/main)
+            if [ "$RUNNING_SHA" != "$TARGET_SHA" ] && ! git merge-base --is-ancestor "$RUNNING_SHA" "$TARGET_SHA"; then
+              echo "DEPLOY BLOQUEADO: origin/main ($TARGET_SHA) nao contem a versao em producao ($RUNNING_SHA)."
+              echo "Instalar esse commit seria voltar para uma versao antiga/divergente -- proibido."
+              exit 1
+            fi
+
+            # Preserva (nao apaga) alteracoes manuais em arquivos rastreados feitas direto na VPS
+            if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+              STASH_NAME="pre-deploy-$(date +%Y%m%d-%H%M%S)"
+              echo "Alteracoes locais na VPS preservadas em git stash: $STASH_NAME"
+              git stash push -m "$STASH_NAME"
+            fi
+
             git reset --hard origin/main
 
             # 3. Instalação de dependências e Build de Produção
@@ -78,36 +97,36 @@ jobs:
             if [ ! -f "/etc/nginx/sites-available/cvfacil-ng" ]; then
               echo "🌐 Criando configuração isolada do Nginx..."
               cat << 'NGINX_EOF' > /etc/nginx/sites-available/cvfacil-ng
-server {
-    listen 80;
-    server_name cvfacil.xavierbr-vps.tech;
-    return 301 https://$host$request_uri;
-}
+            server {
+                listen 80;
+                server_name cvfacil.xavierbr-vps.tech;
+                return 301 https://$host$request_uri;
+            }
 
-server {
-    listen 443 ssl http2;
-    server_name cvfacil.xavierbr-vps.tech;
+            server {
+                listen 443 ssl http2;
+                server_name cvfacil.xavierbr-vps.tech;
 
-    ssl_certificate /etc/letsencrypt/live/cvfacil.xavierbr-vps.tech/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/cvfacil.xavierbr-vps.tech/privkey.pem;
-    include /etc/letsencrypt/options-ssl-nginx.conf;
-    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+                ssl_certificate /etc/letsencrypt/live/cvfacil.xavierbr-vps.tech/fullchain.pem;
+                ssl_certificate_key /etc/letsencrypt/live/cvfacil.xavierbr-vps.tech/privkey.pem;
+                include /etc/letsencrypt/options-ssl-nginx.conf;
+                ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
-    client_max_body_size 30M;
+                client_max_body_size 30M;
 
-    location / {
-        proxy_pass http://127.0.0.1:3003;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto https;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-NGINX_EOF
+                location / {
+                    proxy_pass http://127.0.0.1:3003;
+                    proxy_http_version 1.1;
+                    proxy_set_header Upgrade $http_upgrade;
+                    proxy_set_header Connection 'upgrade';
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto https;
+                    proxy_cache_bypass $http_upgrade;
+                }
+            }
+            NGINX_EOF
               ln -sf /etc/nginx/sites-available/cvfacil-ng /etc/nginx/sites-enabled/cvfacil-ng
               nginx -t && systemctl reload nginx || true
             fi
