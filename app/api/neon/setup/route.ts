@@ -67,6 +67,20 @@ export async function POST() {
       );
     `;
 
+    // 4b. Sessões de servidor (aditivo): só o SHA-256 do token é guardado.
+    await sql`
+      CREATE TABLE IF NOT EXISTS sessions (
+        id VARCHAR(64) PRIMARY KEY,
+        user_id VARCHAR(100) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token_hash VARCHAR(64) NOT NULL,
+        expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        revoked_at TIMESTAMP WITH TIME ZONE DEFAULT NULL
+      );
+    `;
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_token_hash ON sessions(token_hash);`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);`;
+
     // 5. Índices para performance e escalabilidade de busca
     await sql`CREATE INDEX IF NOT EXISTS idx_resumes_user_id ON resumes(user_id);`;
     await sql`CREATE INDEX IF NOT EXISTS idx_resumes_deleted_at ON resumes(deleted_at);`;
@@ -77,7 +91,7 @@ export async function POST() {
     return NextResponse.json({
       success: true,
       message: "Estrutura do banco de dados Neon CVfacil.NG-01 inicializada com sucesso!",
-      tables: ["users", "resumes", "resume_versions"]
+      tables: ["users", "resumes", "resume_versions", "sessions"]
     });
   } catch (error: any) {
     console.error("Erro na inicialização do schema no Neon:", error);
