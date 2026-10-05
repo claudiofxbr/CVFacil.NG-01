@@ -41,9 +41,20 @@ jobs:
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
 
     steps:
+      - name: Prepara DATABASE_URL (GitHub Secret) para o .env da VPS
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -n "$DATABASE_URL" ]; then
+            B64=$(printf '%s' "$DATABASE_URL" | base64 -w0)
+            echo "::add-mask::$B64"
+            echo "DB_B64=$B64" >> "$GITHUB_ENV"
+          fi
+
       - name: Executar Deploy via SSH na VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
+          envs: DB_B64
           host: ${{ secrets.VPS_HOST || '69.62.87.38' }}
           username: ${{ secrets.VPS_USER || 'root' }}
           key: ${{ secrets.VPS_SSH_KEY }}
@@ -87,6 +98,18 @@ jobs:
             fi
 
             git reset --hard origin/main
+
+            # Senha do Neon: fonte da verdade = GitHub Secret DATABASE_URL (nunca no codigo).
+            # Atualiza o .env da VPS (permissao 600) so quando o secret existe.
+            if [ -n "$DB_B64" ]; then
+              NEW_URL=$(printf '%s' "$DB_B64" | base64 -d)
+              ( umask 077
+                grep -v '^DATABASE_URL=' .env > .env.tmp 2>/dev/null || true
+                printf 'DATABASE_URL=%s\n' "$NEW_URL" >> .env.tmp
+                mv .env.tmp .env )
+              unset NEW_URL
+              echo "DATABASE_URL do GitHub Secret aplicada ao .env"
+            fi
 
             # 3. Instalação de dependências e Build de Produção
             echo "📦 Instalando dependências e compilando..."
@@ -166,5 +189,13 @@ jobs:
               pm2 logs cvfacil-ng --nostream --lines 30 --err | tail -30
               exit 1
             fi
+
+            # Leitura inofensiva (userId inexistente): prova que a DATABASE_URL e o Neon funcionam
+            if ! curl -fsS -o /dev/null "http://127.0.0.1:3003/api/neon/resumes?userId=healthcheck-sem-dados"; then
+              echo "App no ar, mas sem acesso ao banco (DATABASE_URL invalida ou Neon inacessivel)."
+              pm2 logs cvfacil-ng --nostream --lines 20 --err | sed -E 's#postgres(ql)?://[^ ]+#<db-url>#g' | tail -20
+              exit 1
+            fi
+            echo "Banco Neon acessivel."
 
             echo "✅ Deploy concluído com sucesso e aplicação online!"
