@@ -41,20 +41,26 @@ jobs:
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
 
     steps:
-      - name: Prepara DATABASE_URL (GitHub Secret) para o .env da VPS
+      - name: Prepara segredos (GitHub Secrets) para o .env da VPS
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           if [ -n "$DATABASE_URL" ]; then
             B64=$(printf '%s' "$DATABASE_URL" | base64 -w0)
             echo "::add-mask::$B64"
             echo "DB_B64=$B64" >> "$GITHUB_ENV"
           fi
+          if [ -n "$GEMINI_API_KEY" ]; then
+            B64=$(printf '%s' "$GEMINI_API_KEY" | base64 -w0)
+            echo "::add-mask::$B64"
+            echo "GEMINI_B64=$B64" >> "$GITHUB_ENV"
+          fi
 
       - name: Executar Deploy via SSH na VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
-          envs: DB_B64
+          envs: DB_B64,GEMINI_B64
           host: ${{ secrets.VPS_HOST || '69.62.87.38' }}
           username: ${{ secrets.VPS_USER || 'root' }}
           key: ${{ secrets.VPS_SSH_KEY }}
@@ -99,17 +105,20 @@ jobs:
 
             git reset --hard origin/main
 
-            # Senha do Neon: fonte da verdade = GitHub Secret DATABASE_URL (nunca no codigo).
-            # Atualiza o .env da VPS (permissao 600) so quando o secret existe.
-            if [ -n "$DB_B64" ]; then
-              NEW_URL=$(printf '%s' "$DB_B64" | base64 -d)
+            # Segredos: fonte da verdade = GitHub Secrets (nunca no codigo). Aplica ao .env da VPS
+            # (permissao 600) so quando o secret existe.
+            aplicar_segredo() {
+              [ -z "$2" ] && return 0
+              VALOR=$(printf '%s' "$2" | base64 -d)
               ( umask 077
-                grep -v '^DATABASE_URL=' .env > .env.tmp 2>/dev/null || true
-                printf 'DATABASE_URL=%s\n' "$NEW_URL" >> .env.tmp
+                grep -v "^$1=" .env > .env.tmp 2>/dev/null || true
+                printf '%s=%s\n' "$1" "$VALOR" >> .env.tmp
                 mv .env.tmp .env )
-              unset NEW_URL
-              echo "DATABASE_URL do GitHub Secret aplicada ao .env"
-            fi
+              unset VALOR
+              echo "$1 do GitHub Secret aplicada ao .env"
+            }
+            aplicar_segredo DATABASE_URL "$DB_B64"
+            aplicar_segredo GEMINI_API_KEY "$GEMINI_B64"
 
             # 3. Instalação de dependências e Build de Produção
             echo "📦 Instalando dependências e compilando..."
@@ -197,5 +206,14 @@ jobs:
               exit 1
             fi
             echo "Banco Neon acessivel."
+
+            # Aviso (nao derruba o deploy): sem chave valida do Gemini a importacao de PDF responde erro
+            GK=$(grep -E '^GEMINI_API_KEY=' .env | head -1 | cut -d= -f2- | tr -d "\"' \r")
+            GC=$(curl -s -o /dev/null -w '%{http_code}' -H "x-goog-api-key: $GK" "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1")
+            if [ "$GC" = "200" ]; then
+              echo "Gemini: chave valida."
+            else
+              echo "AVISO: a chave do Gemini foi recusada (http $GC). A importacao de PDF responde erro ate cadastrar uma chave valida no secret GEMINI_API_KEY."
+            fi
 
             echo "✅ Deploy concluído com sucesso e aplicação online!"
