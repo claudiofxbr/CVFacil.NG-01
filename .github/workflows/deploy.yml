@@ -106,19 +106,26 @@ jobs:
             git reset --hard origin/main
 
             # Segredos: fonte da verdade = GitHub Secrets (nunca no codigo). Aplica ao .env da VPS
-            # (permissao 600) so quando o secret existe.
-            aplicar_segredo() {
-              [ -z "$2" ] && return 0
-              VALOR=$(printf '%s' "$2" | base64 -d)
+            # (permissao 600) so quando o secret existe. Sem funcao nem "[ ] && cmd": o ssh-action
+            # com script_stop checa o status de CADA linha e uma linha que devolve 1 derruba o deploy.
+            if [ -n "$DB_B64" ]; then
+              NOVO=$(printf '%s' "$DB_B64" | base64 -d)
               ( umask 077
-                grep -v "^$1=" .env > .env.tmp 2>/dev/null || true
-                printf '%s=%s\n' "$1" "$VALOR" >> .env.tmp
+                grep -v '^DATABASE_URL=' .env > .env.tmp 2>/dev/null || true
+                printf 'DATABASE_URL=%s\n' "$NOVO" >> .env.tmp
                 mv .env.tmp .env )
-              unset VALOR
-              echo "$1 do GitHub Secret aplicada ao .env"
-            }
-            aplicar_segredo DATABASE_URL "$DB_B64"
-            aplicar_segredo GEMINI_API_KEY "$GEMINI_B64"
+              unset NOVO
+              echo "DATABASE_URL do GitHub Secret aplicada ao .env"
+            fi
+            if [ -n "$GEMINI_B64" ]; then
+              NOVO=$(printf '%s' "$GEMINI_B64" | base64 -d)
+              ( umask 077
+                grep -v '^GEMINI_API_KEY=' .env > .env.tmp 2>/dev/null || true
+                printf 'GEMINI_API_KEY=%s\n' "$NOVO" >> .env.tmp
+                mv .env.tmp .env )
+              unset NOVO
+              echo "GEMINI_API_KEY do GitHub Secret aplicada ao .env"
+            fi
 
             # 3. Instalação de dependências e Build de Produção
             echo "📦 Instalando dependências e compilando..."
@@ -209,7 +216,7 @@ jobs:
 
             # Aviso (nao derruba o deploy): sem chave valida do Gemini a importacao de PDF responde erro
             GK=$(grep -E '^GEMINI_API_KEY=' .env | head -1 | cut -d= -f2- | tr -d "\"' \r")
-            GC=$(curl -s -o /dev/null -w '%{http_code}' -H "x-goog-api-key: $GK" "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1")
+            GC=$(curl -s -o /dev/null -w '%{http_code}' -H "x-goog-api-key: $GK" "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1" || true)
             if [ "$GC" = "200" ]; then
               echo "Gemini: chave valida."
             else
