@@ -217,10 +217,8 @@ jobs:
             # Aviso (nao derruba o deploy): sem chave valida do Gemini a importacao de PDF responde erro
             GK=$(grep -E '^GEMINI_API_KEY=' .env | head -1 | cut -d= -f2- | tr -d "\"' \r")
             GC=$(curl -s -o /dev/null -w '%{http_code}' -H "x-goog-api-key: $GK" "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1" || true)
-            if [ "$GC" = "200" ]; then
-              echo "Gemini: chave valida."
-            else
-              echo "AVISO: a chave do Gemini foi recusada (http $GC). A importacao de PDF responde erro ate cadastrar uma chave valida no secret GEMINI_API_KEY."
-            fi
+            MSG="AVISO: a chave do Gemini foi recusada (http $GC). A importacao de PDF responde erro ate cadastrar uma chave valida no secret GEMINI_API_KEY."
+            if [ "$GC" = "200" ]; then MSG="Gemini: chave valida."; fi
+            echo "$MSG"
 
             echo "✅ Deploy concluído com sucesso e aplicação online!"
