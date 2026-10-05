@@ -1,4 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
+import { buildAiFailure, isApiKeyUsable, isAuthError } from "../../../../lib/geminiErrors";
 import { NextRequest, NextResponse } from "next/server";
 
 const resumeSchema = {
@@ -74,10 +75,12 @@ const resumeSchema = {
 export async function POST(req: NextRequest) {
   try {
     const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ 
-        error: "Chave de API Gemini não configurada no servidor (GEMINI_API_KEY ou API_KEY ausente no .env da VPS)." 
-      }, { status: 500 });
+    if (!isApiKeyUsable(apiKey)) {
+      const f = buildAiFailure(null, false);
+      return NextResponse.json(
+        { success: false, error: f.message, code: f.code, retryable: f.retryable },
+        { status: f.status }
+      );
     }
 
     const ai = new GoogleGenAI({
@@ -106,6 +109,7 @@ export async function POST(req: NextRequest) {
     ];
     let response: any = null;
     let lastError: any = null;
+    let authFailed = false;
 
     const systemPrompt = `Você é um Analista Especialista de RH e Auditor de Extração de Currículos de Alta Fidelidade (CVFacil.NG).
 Sua missão fundamental é extrair com 100% de precisão e fidelidade literal as informações contidas no documento PDF do candidato.
@@ -124,6 +128,7 @@ Regras Críticas e Estritas de Fidelidade:
 
     // Loop de resiliência com modelos alternativos e failover para 429 e 503
     for (const modelName of candidateModels) {
+      if (authFailed) break; // chave invalida: testar outros modelos so repete o 401
       for (let attempt = 1; attempt <= 2; attempt++) {
         try {
           response = await ai.models.generateContent({
@@ -143,6 +148,7 @@ Regras Críticas e Estritas de Fidelidade:
           if (response && response.text) break;
         } catch (err: any) {
           lastError = err;
+          if (isAuthError(err)) { authFailed = true; break; }
           const is429 = err?.status === 429 || err?.message?.includes("429") || err?.message?.includes("RESOURCE_EXHAUSTED") || err?.message?.includes("Quota exceeded");
           if (is429) {
             console.warn(`[Quota Exceeded] Modelo ${modelName} excedeu limite. Chaveando para próximo modelo...`);
@@ -159,74 +165,12 @@ Regras Críticas e Estritas de Fidelidade:
     }
 
     if (!response || !response.text) {
-      console.warn("Todos os modelos falharam na rota V1. Acionando fallback estruturado de alta fidelidade:", lastError?.message || String(lastError));
-      const fallbackData = {
-        fullName: "CLAUDIO FREITAS XAVIER",
-        role: "Analista de Sistemas / Suporte / IA",
-        email: "diretor@xavierbr.net",
-        phone: "(71) 99113-7633",
-        linkedin: "https://www.linkedin.com/in/claudio-xavier-117816b6",
-        portfolio: "http://xavierbr.net",
-        summary: "Profissional com mais de 18 anos de sólida experiência em Tecnologia da Informação, especializado em desenvolvimento e suporte a CPD, implementação e gestão de redes e sistemas em ambientes corporativos. Atualmente atua como Diretor Presidente de empresa de soluções em TI.",
-        experiences: [
-          {
-            role: "Diretor Presidente",
-            company: "xavier.net.br",
-            period: "11/2020 - Atual",
-            description: "xavier.net.br – Salvador, Bahia Gestor de Projetos de TI e Novos Negócios Gestão de Contratos e Parcerias: Administração estratégica de contratos corporativos firmados pela xavier.net.br, atuando diretamente na retenção de clientes, mediação de conflitos e garantia de rentabilidade e continuidade das operações vigentes. Prospecção e Expansão Comercial: Liderança em prospecção ativa de clientes no mercado regional, mapeamento de oportunidades comerciais e apresentação executiva do portfólio de soluções digitais e aplicativos da empresa. Ciclo de Contratação e Implantação: Gerenciamento ponta a ponta dos trâmites burocráticos para assinatura de novos acordos e supervisão técnica da implantação dos projetos fechados. Inovação Aplicada (IA): Integração sinérgica dos conceitos da pós-graduação em Inteligência Artificial para Desenvolvedores no portfólio da empresa, promovendo o desenvolvimento e a arquitetura de soluções que utilizam modelos de linguagem (LLMs), engenharia de prompts e automação inteligente para agregar valor comercial aos produtos dos novos clientes."
-          },
-          {
-            role: "Programador de Sistemas",
-            company: "Fundação Bahiana para desenvolvimento das ciências",
-            period: "05/1993 - 05/2011",
-            description: "Responsável pelos anteprojetos, projetos e implementação de redes Windows Server 2008 R2, Windows 2012 e Linux. Configuração e administração das redes WiFi em secretarias escolares e laboratórios de informática. Gerenciamento dos servidores de e-mail Microsoft corporativo da FBDC. Instalação e configuração dos servidores HP Proliant em formato torre e slim. Desenvolvimento e implementação de novos projetos tecnológicos para a instituição. Implantação e gerenciamento do setor de manutenção das redes de computadores e periféricos. Desenvolvimento e implantação do sistema automatizado de chamada e controle de manutenção de computadores. Execução dos projetos em três campi da FBDC na cidade de Salvador, Bahia."
-          }
-        ],
-        education: [
-          {
-            degree: "Pós-graduação em Inteligência Artificial para Devs.",
-            institution: "Faculdade Unyleya",
-            year: "04/2026 - 12/2026",
-            type: "Extensão"
-          },
-          {
-            degree: "CTS em Análise e Desenvolvimento de Sistemas",
-            institution: "POLO UNOPAR BELÉM - I - FAMAC - PA",
-            year: "08/2016 - 06/2020",
-            type: "Bacharelado"
-          }
-        ],
-        skills: [
-          { name: "ADMINISTRAÇÃO DE REDES WINDOWS E LINUX", level: 90 },
-          { name: "IMPLANTAÇÃO E GERENCIAMENTO DE PROJETOS TI", level: 82 },
-          { name: "GESTÃO DE CONTRATOS E RELACIONAMENTO COM CLIENTES", level: 80 },
-          { name: "MANUTENÇÃO DE REDES E PERIFÉRICOS", level: 80 },
-          { name: "DESENVOLVIMENTO E IMPLEMENTAÇÃO DE SISTEMAS AUTOMATIZADOS", level: 80 },
-          { name: "CONFIGURAÇÃO E GERENCIAMENTO DE SERVIDORES HP PROLIANT", level: 80 },
-          { name: "DESENVOLVIMENTO COM BORLAND DELPHI", level: 75 },
-          { name: "PROSPECÇÃO COMERCIAL", level: 75 },
-          { name: "PROGRAMAÇÃO DE BANCO DE DADOS", level: 75 },
-          { name: "SEGURANÇA DE REDES E FIREWALL", level: 75 },
-          { name: "ANALISTA INTELIGÊNCIA ARTIFICIAL - PÓS-GRADUAÇÃO", level: 80 }
-        ],
-        languages: [
-          { name: "Português", level: "Fluente / Nativo" },
-          { name: "Inglês", level: "Avançado" },
-          { name: "Espanhol", level: "Básico" }
-        ],
-        hobbies: [
-          "Inteligência Artificial",
-          "estudar para adquirir conhecimento",
-          "Musculação",
-          "Praias",
-          "Viagens"
-        ]
-      };
-
-      return NextResponse.json({
-        rawText: JSON.stringify(fallbackData),
-        source: "agent-resilience-fallback"
-      });
+      const failure = buildAiFailure(lastError, true);
+      console.error(`[import-pdf] IA indisponivel (${failure.code}):`, lastError?.message || lastError);
+      return NextResponse.json(
+        { success: false, error: failure.message, code: failure.code, retryable: failure.retryable },
+        { status: failure.status }
+      );
     }
 
     const rawText = response.text;
@@ -238,6 +182,6 @@ Regras Críticas e Estritas de Fidelidade:
     return NextResponse.json({ data: parsedData });
   } catch (error: any) {
     console.error("Erro na rota /api/gemini/import-pdf:", error);
-    return NextResponse.json({ error: error.message || "Erro ao processar PDF com a IA." }, { status: 500 });
+    return NextResponse.json({ error: "Erro ao processar PDF com a IA.", code: "IMPORT_FAILED" }, { status: 500 });
   }
 }
