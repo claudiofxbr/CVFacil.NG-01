@@ -90,7 +90,7 @@ jobs:
 
             # 3. Instalação de dependências e Build de Produção
             echo "📦 Instalando dependências e compilando..."
-            npm install --production=false --prefer-offline --no-audit
+            npm ci --no-audit --no-fund
             npm run build
 
             # 4. Configuração isolada do Nginx (NÃO TOCA NO PortalCursos.NG)
@@ -138,6 +138,33 @@ jobs:
             else
               pm2 start npm --name "cvfacil-ng" -- run start -- -p 3003
               pm2 save
+            fi
+
+            # 6. Endurecimento idempotente (seguro repetir a cada deploy)
+            # .env guarda DATABASE_URL e GEMINI_API_KEY: so o dono pode ler
+            chmod 600 "$APP_DIR/.env" 2>/dev/null || true
+            # sem isto o PM2 nao sobe sozinho depois de reiniciar a VPS e o app fica fora do ar
+            if ! systemctl is-enabled pm2-root >/dev/null 2>&1; then
+              echo "Configurando PM2 para iniciar no boot..."
+              pm2 startup systemd -u root --hp /root || true
+            fi
+            pm2 save
+
+            # 7. Confirma que o app realmente respondeu apos o reload; senao o deploy falha visivelmente
+            echo "Verificando saude local do app..."
+            OK=0
+            for i in 1 2 3 4 5 6 7 8 9 10; do
+              if curl -fsS -o /dev/null http://127.0.0.1:3003/login; then
+                echo "App respondeu 200 (tentativa $i)"
+                OK=1
+                break
+              fi
+              sleep 3
+            done
+            if [ "$OK" != "1" ]; then
+              echo "App nao respondeu apos o deploy. Ultimas linhas de erro:"
+              pm2 logs cvfacil-ng --nostream --lines 30 --err | tail -30
+              exit 1
             fi
 
             echo "✅ Deploy concluído com sucesso e aplicação online!"
