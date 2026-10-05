@@ -2,11 +2,11 @@ import { describe, it, expect } from 'vitest';
 
 describe('Neon Database Integration Suite (CVfacil.NG-01)', () => {
   it('deve validar connection string e formato compatível com Neon Serverless', () => {
-    const connStr = 'postgresql://neondb_owner:npg_kRVX31WqYgsQ@ep-misty-unit-b6b7q8hh-pooler.c-2.sa-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
+    const connStr = 'postgresql://usuario:senha-ficticia@ep-exemplo-pooler.sa-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
     
     expect(connStr).toContain('neon.tech');
     expect(connStr).toContain('sslmode=require');
-    expect(connStr).toContain('neondb_owner');
+    expect(connStr.startsWith('postgresql://')).toBe(true);
   });
 
   it('deve mapear schema relacional com suporte a JSONB para currículos heterogêneos', () => {

@@ -1,15 +1,23 @@
-// Conexão oficial com o pooler do Neon para CVfacil.NG-01
+// Conexão com o pooler do Neon para CVfacil.NG-01.
+// A connection string vem SEMPRE da variável de ambiente DATABASE_URL (no servidor: .env com
+// permissão 600, alimentado pelo GitHub Secret DATABASE_URL a cada deploy). Nunca escreva
+// credenciais neste arquivo: o repositório é público.
 // Implementação autônoma de alta performance com zero dependências externas
-const connectionString = process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_kRVX31WqYgsQ@ep-misty-unit-b6b7q8hh-pooler.c-2.sa-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
+
+function getConnectionString(): string {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error('DATABASE_URL não configurada: defina a variável de ambiente do servidor.');
+  }
+  return connectionString;
+}
 
 function getNeonEndpoint(connStr: string): string {
-  try {
-    const match = connStr.match(/@([^/:?]+)/);
-    const host = match ? match[1] : 'ep-misty-unit-b6b7q8hh-pooler.c-2.sa-east-1.aws.neon.tech';
-    return `https://${host}/sql`;
-  } catch {
-    return 'https://ep-misty-unit-b6b7q8hh-pooler.c-2.sa-east-1.aws.neon.tech/sql';
+  const match = connStr.match(/@([^/:?]+)/);
+  if (!match) {
+    throw new Error('DATABASE_URL inválida: não foi possível identificar o host do Neon.');
   }
+  return `https://${match[1]}/sql`;
 }
 
 /**
@@ -28,6 +36,7 @@ export async function sql(strings: TemplateStringsArray, ...values: any[]): Prom
     }
   }
 
+  const connectionString = getConnectionString();
   const endpoint = getNeonEndpoint(connectionString);
   const response = await fetch(endpoint, {
     method: 'POST',
