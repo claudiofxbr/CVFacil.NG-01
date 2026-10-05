@@ -201,7 +201,7 @@ export const importResumeFromPdf = async (
           contents: {
             parts: [
               { inlineData: { mimeType: 'application/pdf', data: base64Data } },
-              { text: "Você é um especialista em recrutamento e seleção (Tech Recruiter). Analise cuidadosamente este currículo em PDF. Extraia todas as informações relevantes, mesmo que o layout seja complexo (ex: múltiplas colunas, tabelas). Converta os dados para o formato JSON estruturado seguindo rigorosamente o schema fornecido. Se uma informação não estiver presente, use valores vazios ou arrays vazios. Padronize as datas para um formato legível (ex: 'MM/AAAA' ou 'AAAA'). Se o resumo profissional estiver ausente, crie um resumo profissional impactante baseado nas experiências extraídas." }
+              { text: "Você é um Auditor de Extração de Currículos de Alta Fidelidade. Extraia com precisão literal os dados do currículo em PDF, inclusive quando o layout for complexo (ex: múltiplas colunas, tabelas). Regras estritas: (1) NUNCA invente, deduza, resuma, reescreva ou melhore nenhum dado do candidato; (2) copie nomes, cargos, empresas, textos e datas exatamente como estão escritos no documento, sem padronizar nem converter formatos; (3) se uma informação não estiver presente no documento, use valor vazio ou array vazio — em especial, se não houver resumo profissional, deixe o resumo vazio; (4) responda estritamente no formato JSON do schema fornecido." }
             ]
           },
           config: {
