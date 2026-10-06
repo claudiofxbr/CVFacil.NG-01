@@ -8,6 +8,7 @@ vi.mock('../../lib/neon', () => ({
   sql: async (strings: TemplateStringsArray, ...v: any[]) => {
     const t = strings.join('?').replace(/\s+/g, ' ').trim();
     db.calls.push({ t, v });
+    if (t.startsWith('ALTER')) return [];
     if (t.startsWith('CREATE')) {
       if (db.failDdlOnce) { db.failDdlOnce = false; throw new Error('ddl falhou'); }
       return [];

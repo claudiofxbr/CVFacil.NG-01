@@ -1,6 +1,34 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
+import { useAuth } from './AuthProvider';
+import { startCheckout } from '../services/paymentsClient';
 
 const Pricing: React.FC = () => {
+  const { user } = useAuth();
+  const [busyPlan, setBusyPlan] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  // useRef evita clique duplo antes do estado re-renderizar (mesmo padrão do Dashboard)
+  const busyRef = useRef(false);
+
+  // O cliente só envia o id do plano; o preço é do servidor. Em sucesso, vai para o checkout do PagBank.
+  const buy = async (planId: string) => {
+    if (busyRef.current) return;
+    if (!user) {
+      setMessage('Entre na sua conta para contratar um plano.');
+      return;
+    }
+    busyRef.current = true;
+    setBusyPlan(planId);
+    setMessage(null);
+    const result = await startCheckout(planId);
+    if (result.ok) {
+      window.location.assign(result.url); // permanece bloqueado até a navegação
+      return;
+    }
+    setMessage(result.message);
+    setBusyPlan(null);
+    busyRef.current = false;
+  };
+
   return (
     <div className="p-8 max-w-7xl mx-auto animate-in fade-in duration-500">
         <header className="text-center mb-16">
@@ -24,7 +52,7 @@ const Pricing: React.FC = () => {
                     <li className="flex gap-3 text-sm text-stone-300"><span className="material-symbols-outlined text-primary text-[18px]">check_circle</span>Layouts básicos</li>
                     <li className="flex gap-3 text-sm text-stone-300"><span className="material-symbols-outlined text-primary text-[18px]">check_circle</span>Exportação PDF</li>
                 </ul>
-                <button className="w-full py-4 rounded-xl border border-forest-border text-white font-bold hover:bg-forest-border transition-colors">Criar Meu Currículo</button>
+                <button onClick={() => buy('basico')} disabled={busyPlan !== null} className="w-full py-4 rounded-xl border border-forest-border text-white font-bold hover:bg-forest-border transition-colors disabled:opacity-50 disabled:cursor-not-allowed">{busyPlan === 'basico' ? 'Redirecionando...' : 'Criar Meu Currículo'}</button>
             </div>
 
             {/* Standard Plan (Highlight) */}
@@ -44,7 +72,7 @@ const Pricing: React.FC = () => {
                     <li className="flex gap-3 text-sm text-stone-300"><span className="material-symbols-outlined text-primary text-[18px]">check_circle</span>Exportação PDF, DOCX, HTML</li>
                     <li className="flex gap-3 text-sm text-stone-300"><span className="material-symbols-outlined text-primary text-[18px]">check_circle</span>Importação de PDF</li>
                 </ul>
-                <button className="w-full py-4 rounded-xl bg-primary hover:bg-secondary text-white font-bold transition-colors shadow-lg shadow-primary/25">Quero Mais Opções</button>
+                <button onClick={() => buy('padrao')} disabled={busyPlan !== null} className="w-full py-4 rounded-xl bg-primary hover:bg-secondary text-white font-bold transition-colors shadow-lg shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed">{busyPlan === 'padrao' ? 'Redirecionando...' : 'Quero Mais Opções'}</button>
             </div>
 
             {/* Premium Plan */}
@@ -63,13 +91,17 @@ const Pricing: React.FC = () => {
                     <li className="flex gap-3 text-sm text-stone-300"><span className="material-symbols-outlined text-primary text-[18px]">check_circle</span>Suporte Prioritário</li>
                     <li className="flex gap-3 text-sm text-stone-300"><span className="material-symbols-outlined text-primary text-[18px]">check_circle</span>Templates Exclusivos</li>
                 </ul>
-                <button className="w-full py-4 rounded-xl border border-forest-border text-white font-bold hover:bg-forest-border transition-colors">Plano Completo</button>
+                <button onClick={() => buy('premium')} disabled={busyPlan !== null} className="w-full py-4 rounded-xl border border-forest-border text-white font-bold hover:bg-forest-border transition-colors disabled:opacity-50 disabled:cursor-not-allowed">{busyPlan === 'premium' ? 'Redirecionando...' : 'Plano Completo'}</button>
             </div>
         </div>
 
+        {message && (
+            <p role="alert" className="mt-8 text-center text-sm text-red-300">{message}</p>
+        )}
+
         <div className="mt-12 text-center text-stone-500 text-sm flex items-center justify-center gap-2">
             <span className="material-symbols-outlined text-[18px]">lock</span>
-            Pagamento 100% seguro via Stripe
+            Pagamento 100% seguro via PagBank
         </div>
     </div>
   );

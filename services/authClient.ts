@@ -102,7 +102,8 @@ export function identityFromMe(me: {
       email: me.email,
       avatar,
       role: isAdmin ? 'Administrador' : 'Cliente',
-      plan: isAdmin || me.plan?.toLowerCase() === 'premium' ? 'Premium' : 'Free',
+      // plano comprado (basico|padrao|premium) conta como pago na interface; o limite real é aplicado no servidor
+      plan: isAdmin || ['basico', 'padrao', 'premium'].includes(me.plan?.toLowerCase() ?? '') ? 'Premium' : 'Free',
       credits: isAdmin ? 999999 : me.credits ?? 0,
       status: 'Ativo',
     },

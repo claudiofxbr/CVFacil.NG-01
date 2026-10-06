@@ -55,6 +55,10 @@ export async function ensurePaymentsSchema(): Promise<void> {
       received_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
   `;
+  // Link PAY do checkout hospedado (permite reutilizar o link de um pedido pendente recente).
+  await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS checkout_url TEXT;`;
+  // Direitos do plano: contador de importações de PDF desde a última compra paga.
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS pdf_imports_used INTEGER NOT NULL DEFAULT 0;`;
   await sql`CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);`;
   await sql`CREATE INDEX IF NOT EXISTS idx_webhook_events_order_id ON webhook_events(order_id);`;
   schemaReady = true; // só após o sucesso: falha de DDL é tentada de novo
