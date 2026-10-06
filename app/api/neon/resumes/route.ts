@@ -1,5 +1,5 @@
 import { sql } from '../../../../lib/neon';
-import { buildAccountEmail, isUniqueViolation } from '../../../../lib/accountIdentity';
+import { authContext, findAccessibleResume, notFoundResume } from '../../../../lib/apiAuth';
 import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -66,30 +66,23 @@ function sanitizeResumePayload(resume: any) {
   };
 }
 
-// GET: Buscar currículos de um usuário (ou todos se admin) com suporte à lixeira
+// GET: Buscar currículos do usuário da sessão (admin: ?scope=all lista todos) com suporte à lixeira
 export async function GET(req: NextRequest) {
+  const ctx = await authContext(req);
+  if (ctx instanceof NextResponse) return ctx;
   try {
     const { searchParams } = new URL(req.url);
-    const userId = searchParams.get('userId');
     const resumeId = searchParams.get('id');
     const onlyDeleted = searchParams.get('status') === 'trash' || searchParams.get('onlyDeleted') === 'true';
-    const requesterRole = searchParams.get('role'); // 'admin' ou 'user'
+    // userId e role da URL são ignorados: a identidade é a da sessão.
+    const listAll = ctx.isAdmin && searchParams.get('scope') === 'all';
 
-    // 1. Busca por ID específico
+    // 1. Busca por ID específico (alheio => 404, igual a inexistente)
     if (resumeId) {
-      let query;
-      if (requesterRole === 'admin') {
-        query = sql`SELECT * FROM resumes WHERE id = ${resumeId} LIMIT 1;`;
-      } else if (userId) {
-        query = sql`SELECT * FROM resumes WHERE id = ${resumeId} AND user_id = ${userId} LIMIT 1;`;
-      } else {
-        query = sql`SELECT * FROM resumes WHERE id = ${resumeId} LIMIT 1;`;
-      }
-
-      const rows = await query;
-      if (!rows || rows.length === 0) {
-        return NextResponse.json({ error: "Currículo não encontrado ou acesso não autorizado." }, { status: 404 });
-      }
+      const rows = ctx.isAdmin
+        ? await sql`SELECT * FROM resumes WHERE id = ${resumeId} LIMIT 1;`
+        : await sql`SELECT * FROM resumes WHERE id = ${resumeId} AND user_id = ${ctx.id} LIMIT 1;`;
+      if (!rows || rows.length === 0) return notFoundResume();
 
       const item = rows[0];
       const parsedData = typeof item.data === 'string' ? JSON.parse(item.data) : (item.data || {});
@@ -119,42 +112,16 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    if (!userId && requesterRole !== 'admin') {
-      return NextResponse.json({ error: "userId obrigatório para consulta." }, { status: 400 });
-    }
-
     // 2. Listagem de currículos (Ativos vs Lixeira)
     let rows;
-    if (requesterRole === 'admin' && !userId) {
-      // Admin acessa todos
-      if (onlyDeleted) {
-        rows = await sql`
-          SELECT * FROM resumes 
-          WHERE deleted_at IS NOT NULL
-          ORDER BY deleted_at DESC;
-        `;
-      } else {
-        rows = await sql`
-          SELECT * FROM resumes 
-          WHERE deleted_at IS NULL
-          ORDER BY is_pinned DESC, updated_at DESC;
-        `;
-      }
+    if (listAll) {
+      rows = onlyDeleted
+        ? await sql`SELECT * FROM resumes WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC;`
+        : await sql`SELECT * FROM resumes WHERE deleted_at IS NULL ORDER BY is_pinned DESC, updated_at DESC;`;
     } else {
-      // Usuário comum: Autorização rígida ao seu próprio user_id
-      if (onlyDeleted) {
-        rows = await sql`
-          SELECT * FROM resumes 
-          WHERE user_id = ${userId} AND deleted_at IS NOT NULL
-          ORDER BY deleted_at DESC;
-        `;
-      } else {
-        rows = await sql`
-          SELECT * FROM resumes 
-          WHERE user_id = ${userId} AND deleted_at IS NULL
-          ORDER BY is_pinned DESC, updated_at DESC;
-        `;
-      }
+      rows = onlyDeleted
+        ? await sql`SELECT * FROM resumes WHERE user_id = ${ctx.id} AND deleted_at IS NOT NULL ORDER BY deleted_at DESC;`
+        : await sql`SELECT * FROM resumes WHERE user_id = ${ctx.id} AND deleted_at IS NULL ORDER BY is_pinned DESC, updated_at DESC;`;
     }
 
     const resumes = rows.map((item: any) => {
@@ -192,39 +159,23 @@ export async function GET(req: NextRequest) {
 
 // POST: Salvar ou atualizar currículo com regras de negócio, limites e histórico auditável
 export async function POST(req: NextRequest) {
+  const ctx = await authContext(req);
+  if (ctx instanceof NextResponse) return ctx;
   try {
     const rawResume = await req.json();
-    if (!rawResume || !rawResume.id || !rawResume.userId) {
-      return NextResponse.json({ error: "Dados incompletos do currículo (id e userId são obrigatórios)." }, { status: 400 });
+    if (!rawResume || typeof rawResume.id !== 'string' || !rawResume.id || rawResume.id.length > 100) {
+      return NextResponse.json({ error: "Dados incompletos do currículo (id é obrigatório)." }, { status: 400 });
     }
 
-    // Sanitização rigorosa contra injeções de script e tags maliciosas
-    const resume = sanitizeResumePayload(rawResume);
+    // Sanitização rigorosa contra injeções de script e tags maliciosas.
+    // userId do corpo é descartado: o dono é sempre o usuário da sessão.
+    const resume = { ...sanitizeResumePayload(rawResume), userId: ctx.id };
 
-    // 1. Garante que o usuário existe na tabela users e obtém informações de plano e créditos
-    // O e-mail da conta NUNCA vem do conteúdo do currículo (ex.: e-mail extraído do PDF):
-    // se já pertencesse a outra linha de users, o INSERT quebrava em users_email_key (500).
-    let userRows: any[];
-    try {
-      userRows = await sql`
-        INSERT INTO users (id, email, name, role)
-        VALUES (${resume.userId}, ${buildAccountEmail(resume.userId)}, ${resume.fullName || 'Usuário'}, 'user')
-        ON CONFLICT (id) DO UPDATE SET updated_at = CURRENT_TIMESTAMP
-        RETURNING plan, credits, role;
-      `;
-    } catch (error: any) {
-      if (isUniqueViolation(error, 'users_email_key')) {
-        console.error("Conflito de identidade ao registrar usuário do currículo:", error);
-        return NextResponse.json({
-          error: "Não foi possível vincular o currículo à sua conta: já existe outro usuário com esta identidade.",
-          code: "USER_IDENTITY_CONFLICT"
-        }, { status: 409 });
-      }
-      throw error;
-    }
-
-    const userProfile = userRows[0] || { plan: 'free', credits: 5, role: 'user' };
-    const isAdmin = userProfile.role === 'admin';
+    // 1. Plano e créditos do usuário da sessão (a linha em users já existe desde o cadastro).
+    const userRows = await sql`SELECT plan, credits FROM users WHERE id = ${ctx.id} LIMIT 1;`;
+    if (!userRows[0]) return NextResponse.json({ error: 'UNAUTHENTICATED' }, { status: 401 });
+    const userProfile = userRows[0];
+    const isAdmin = ctx.isAdmin;
     const isFreePlan = (userProfile.plan || 'free').toLowerCase() === 'free';
 
     // 2. Verificar se o currículo já existe no banco
@@ -233,9 +184,9 @@ export async function POST(req: NextRequest) {
     `;
     const isUpdate = existingRows && existingRows.length > 0;
 
-    // Autorização rígida: se for atualização e não for admin, verificar se pertence ao usuário
-    if (isUpdate && !isAdmin && existingRows[0].user_id !== resume.userId) {
-      return NextResponse.json({ error: "Acesso negado: Você não tem permissão para editar este currículo." }, { status: 403 });
+    // Autorização rígida: currículo alheio é tratado como inexistente (404), exceto para admin
+    if (isUpdate && !isAdmin && existingRows[0].user_id !== ctx.id) {
+      return notFoundResume();
     }
 
     // 3. Regra de Limite de Documentos: Plano Free permite no máximo 3 currículos ativos simultâneos
@@ -356,34 +307,26 @@ export async function POST(req: NextRequest) {
 
 // DELETE: Mover para a Lixeira (Soft Delete) ou Exclusão Permanente (Hard Delete)
 export async function DELETE(req: NextRequest) {
+  const ctx = await authContext(req);
+  if (ctx instanceof NextResponse) return ctx;
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
     const action = searchParams.get('action') || 'trash'; // 'trash' ou 'permanent'
-    const userId = searchParams.get('userId');
-    const requesterRole = searchParams.get('role'); // 'admin' ou 'user'
 
     if (!id) {
       return NextResponse.json({ error: "ID obrigatório para deleção." }, { status: 400 });
     }
 
-    // Autorização Rígida
-    if (requesterRole !== 'admin' && userId) {
-      const checkRows = await sql`SELECT user_id FROM resumes WHERE id = ${id} LIMIT 1;`;
-      if (checkRows && checkRows.length > 0 && checkRows[0].user_id !== userId) {
-        return NextResponse.json({ error: "Acesso negado: Você não pode excluir este currículo." }, { status: 403 });
-      }
-    }
+    if (!(await findAccessibleResume(ctx, id))) return notFoundResume();
 
     if (action === 'permanent') {
-      // Exclusão definitiva
       await sql`DELETE FROM resumes WHERE id = ${id};`;
       return NextResponse.json({ success: true, action: 'permanent', deletedId: id });
     } else {
-      // Soft Delete: Move para a Lixeira com registro de deleted_at
       await sql`
-        UPDATE resumes 
-        SET deleted_at = CURRENT_TIMESTAMP 
+        UPDATE resumes
+        SET deleted_at = CURRENT_TIMESTAMP
         WHERE id = ${id};
       `;
       return NextResponse.json({ success: true, action: 'trash', movedToTrashId: id });
@@ -396,24 +339,19 @@ export async function DELETE(req: NextRequest) {
 
 // PATCH: Restaurar currículo da Lixeira
 export async function PATCH(req: NextRequest) {
+  const ctx = await authContext(req);
+  if (ctx instanceof NextResponse) return ctx;
   try {
-    const { id, userId, role } = await req.json();
+    const { id } = await req.json();
 
-    if (!id) {
+    if (!id || typeof id !== 'string') {
       return NextResponse.json({ error: "ID obrigatório para restauração." }, { status: 400 });
     }
 
-    // Autorização Rígida
-    if (role !== 'admin' && userId) {
-      const checkRows = await sql`SELECT user_id FROM resumes WHERE id = ${id} LIMIT 1;`;
-      if (checkRows && checkRows.length > 0 && checkRows[0].user_id !== userId) {
-        return NextResponse.json({ error: "Acesso negado: Você não pode restaurar este currículo." }, { status: 403 });
-      }
-    }
+    if (!(await findAccessibleResume(ctx, id))) return notFoundResume();
 
-    // Restaura da lixeira limpando deleted_at
     await sql`
-      UPDATE resumes 
+      UPDATE resumes
       SET deleted_at = NULL, updated_at = CURRENT_TIMESTAMP
       WHERE id = ${id};
     `;

@@ -8,10 +8,10 @@ export const neonResumeService = {
   /**
    * Buscar currículos ativos de um usuário (ou todos se admin)
    */
-  async getResumes(userId: string, role?: string): Promise<ResumeData[]> {
+  async getResumes(): Promise<ResumeData[]> {
+    // O servidor identifica o usuário pela sessão (cookie); userId/role não são enviados.
     try {
-      const url = `/api/neon/resumes?userId=${encodeURIComponent(userId)}${role ? `&role=${encodeURIComponent(role)}` : ''}`;
-      const res = await fetch(url, { cache: 'no-store' });
+      const res = await fetch('/api/neon/resumes', { cache: 'no-store', credentials: 'same-origin' });
       if (!res.ok) {
         throw new Error(`Erro ${res.status} ao buscar currículos no Neon.`);
       }
@@ -19,18 +19,16 @@ export const neonResumeService = {
       return data.resumes || [];
     } catch (error) {
       console.error("Erro no neonResumeService.getResumes:", error);
-      const local = localStorage.getItem('cvfacil_local_resumes');
-      return local ? JSON.parse(local).filter((r: ResumeData) => !r.deletedAt) : [];
+      return [];
     }
   },
 
   /**
    * Buscar currículos na lixeira (soft delete)
    */
-  async getTrashResumes(userId: string, role?: string): Promise<ResumeData[]> {
+  async getTrashResumes(): Promise<ResumeData[]> {
     try {
-      const url = `/api/neon/resumes?userId=${encodeURIComponent(userId)}&status=trash${role ? `&role=${encodeURIComponent(role)}` : ''}`;
-      const res = await fetch(url, { cache: 'no-store' });
+      const res = await fetch('/api/neon/resumes?status=trash', { cache: 'no-store', credentials: 'same-origin' });
       if (!res.ok) {
         throw new Error(`Erro ${res.status} ao buscar lixeira no Neon.`);
       }
@@ -38,8 +36,7 @@ export const neonResumeService = {
       return data.resumes || [];
     } catch (error) {
       console.error("Erro no neonResumeService.getTrashResumes:", error);
-      const local = localStorage.getItem('cvfacil_local_resumes');
-      return local ? JSON.parse(local).filter((r: ResumeData) => Boolean(r.deletedAt)) : [];
+      return [];
     }
   },
 
@@ -70,6 +67,7 @@ export const neonResumeService = {
 
       const res = await fetch('/api/neon/resumes', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
@@ -88,10 +86,10 @@ export const neonResumeService = {
   /**
    * Mover currículo para a lixeira (Soft Delete)
    */
-  async moveToTrash(id: string, userId?: string, role?: string): Promise<boolean> {
+  async moveToTrash(id: string): Promise<boolean> {
     try {
-      const url = `/api/neon/resumes?id=${encodeURIComponent(id)}&action=trash${userId ? `&userId=${encodeURIComponent(userId)}` : ''}${role ? `&role=${encodeURIComponent(role)}` : ''}`;
-      const res = await fetch(url, { method: 'DELETE' });
+      const url = `/api/neon/resumes?id=${encodeURIComponent(id)}&action=trash`;
+      const res = await fetch(url, { method: 'DELETE', credentials: 'same-origin' });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || `Erro ${res.status} ao mover para a lixeira.`);
@@ -114,12 +112,13 @@ export const neonResumeService = {
   /**
    * Restaurar currículo da lixeira
    */
-  async restoreFromTrash(id: string, userId?: string, role?: string): Promise<boolean> {
+  async restoreFromTrash(id: string): Promise<boolean> {
     try {
       const res = await fetch('/api/neon/resumes', {
         method: 'PATCH',
+        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, userId, role })
+        body: JSON.stringify({ id })
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -143,10 +142,10 @@ export const neonResumeService = {
   /**
    * Excluir definitivamente do Neon (Hard Delete)
    */
-  async permanentDelete(id: string, userId?: string, role?: string): Promise<boolean> {
+  async permanentDelete(id: string): Promise<boolean> {
     try {
-      const url = `/api/neon/resumes?id=${encodeURIComponent(id)}&action=permanent${userId ? `&userId=${encodeURIComponent(userId)}` : ''}${role ? `&role=${encodeURIComponent(role)}` : ''}`;
-      const res = await fetch(url, { method: 'DELETE' });
+      const url = `/api/neon/resumes?id=${encodeURIComponent(id)}&action=permanent`;
+      const res = await fetch(url, { method: 'DELETE', credentials: 'same-origin' });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || `Erro ${res.status} ao excluir definitivamente.`);
@@ -171,7 +170,8 @@ export const neonResumeService = {
   async getVersions(resumeId: string): Promise<ResumeVersion[]> {
     try {
       const res = await fetch(`/api/neon/resumes/versions?resumeId=${encodeURIComponent(resumeId)}`, {
-        cache: 'no-store'
+        cache: 'no-store',
+        credentials: 'same-origin'
       });
       if (!res.ok) return [];
       const data = await res.json();
@@ -185,12 +185,13 @@ export const neonResumeService = {
   /**
    * Restaurar uma versão anterior
    */
-  async restoreVersion(resumeId: string, versionId: string, userId?: string): Promise<ResumeData | null> {
+  async restoreVersion(resumeId: string, versionId: string): Promise<ResumeData | null> {
     try {
       const res = await fetch('/api/neon/resumes/versions', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resumeId, versionId, userId })
+        body: JSON.stringify({ resumeId, versionId })
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));

@@ -19,6 +19,12 @@ vi.mock('../../lib/neon', () => ({
   },
 }));
 
+// Sessão simulada: a identidade vem do servidor (cookie), nunca do corpo.
+vi.mock('../../lib/requireUser', async (orig) => ({
+  ...(await orig<any>()),
+  requireUser: async () => ({ id: 'user-sessao', email: 'sessao@x.com' }),
+}));
+
 const PDF_EMAIL = 'diretor@xavierbr.net';
 
 function postRequest(body: any) {
@@ -61,49 +67,37 @@ describe('identidade da conta x conteúdo do currículo', () => {
     expect(isUniqueViolation(undefined)).toBe(false);
   });
 
-  it('POST não envia o e-mail do PDF para a tabela users', async () => {
+  const usersQuery = (query: string) =>
+    /SELECT plan, credits FROM users/.test(query) ? [{ plan: 'free', credits: 5 }] : [];
+
+  it('POST nunca cria/atualiza linha em users (sem e-mail sintético nem e-mail do PDF)', async () => {
     const { POST } = await import('../../app/api/neon/resumes/route');
-    sqlImpl = (query) => (/INSERT INTO users/.test(query) ? [{ plan: 'free', credits: 5, role: 'user' }] : []);
+    sqlImpl = usersQuery;
 
-    await POST(postRequest(importedResume));
+    const res = await POST(postRequest(importedResume));
 
-    const upsert = sqlCalls.find((c) => /INSERT INTO users/.test(c.query));
-    expect(upsert).toBeDefined();
-    expect(upsert!.params).not.toContain(PDF_EMAIL);
-    expect(upsert!.params).toContain('admin-claudio@cvfacil.local');
+    expect(res.status).toBe(200);
+    expect(sqlCalls.some((c) => /INSERT INTO users/.test(c.query))).toBe(false);
+    expect(sqlCalls.some((c) => c.params.includes(PDF_EMAIL) && /users/.test(c.query))).toBe(false);
   });
 
-  it('o e-mail do PDF continua gravado no currículo (fidelidade dos dados)', async () => {
+  it('o e-mail do PDF continua gravado no currículo, dono = usuário da sessão', async () => {
     const { POST } = await import('../../app/api/neon/resumes/route');
-    sqlImpl = (query) => (/INSERT INTO users/.test(query) ? [{ plan: 'free', credits: 5, role: 'user' }] : []);
+    sqlImpl = usersQuery;
 
     await POST(postRequest(importedResume));
 
     const resumeWrites = sqlCalls.filter((c) => /INTO resumes/i.test(c.query));
     expect(resumeWrites.length).toBeGreaterThan(0);
     expect(resumeWrites.some((c) => c.params.includes(PDF_EMAIL))).toBe(true);
+    expect(resumeWrites.every((c) => !c.params.includes('admin-claudio'))).toBe(true);
+    expect(resumeWrites[0].params).toContain('user-sessao');
   });
 
-  it('conflito de unicidade em users vira 409 tratado, nunca 500', async () => {
+  it('erro inesperado do banco continua sendo 500', async () => {
     const { POST } = await import('../../app/api/neon/resumes/route');
     sqlImpl = (query) => {
-      if (/INSERT INTO users/.test(query)) {
-        throw new Error('Neon SQL Query Error (400): {"code":"23505","constraint":"users_email_key"}');
-      }
-      return [];
-    };
-
-    const res = await POST(postRequest(importedResume));
-    const json = await res.json();
-
-    expect(res.status).toBe(409);
-    expect(json.code).toBe('USER_IDENTITY_CONFLICT');
-  });
-
-  it('erro inesperado do banco continua sendo 500 (não é engolido como conflito)', async () => {
-    const { POST } = await import('../../app/api/neon/resumes/route');
-    sqlImpl = (query) => {
-      if (/INSERT INTO users/.test(query)) throw new Error('conexão recusada');
+      if (/SELECT plan, credits FROM users/.test(query)) throw new Error('conexão recusada');
       return [];
     };
 

@@ -21,3 +21,11 @@ export function isUniqueViolation(error: unknown, constraint?: string): boolean 
   if (!isUnique) return false;
   return constraint ? message.includes(constraint) : true;
 }
+
+/** Domínios reservados: nunca podem ser usados num cadastro real (evita tomar contas legadas pelo e-mail sintético). */
+export const LEGACY_EMAIL_DOMAIN = 'cvfacil.local';
+export const CLAIMED_EMAIL_DOMAIN = 'claimed.cvfacil.invalid';
+export const RESERVED_EMAIL_DOMAINS = [LEGACY_EMAIL_DOMAIN, CLAIMED_EMAIL_DOMAIN];
+
+/** Único formato de id local reivindicável. admin-claudio/admin-master e UUIDs ficam de fora. */
+export const LEGACY_ID_RE = /^local-\d{10,16}$/;

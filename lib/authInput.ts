@@ -1,11 +1,14 @@
 import { PASSWORD_MAX, PASSWORD_MIN } from './password';
+import { RESERVED_EMAIL_DOMAINS } from './accountIdentity';
 
 const EMAIL_RE = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
 
 export function normalizeEmail(v: unknown): string | null {
   if (typeof v !== 'string') return null;
   const e = v.trim().toLowerCase();
-  return e.length <= 254 && EMAIL_RE.test(e) ? e : null;
+  if (e.length > 254 || !EMAIL_RE.test(e)) return null;
+  // Domínios reservados dos e-mails sintéticos legados: não podem ser registrados.
+  return RESERVED_EMAIL_DOMAINS.includes(e.split('@')[1]) ? null : e;
 }
 
 export function validPasswordShape(v: unknown): v is string {

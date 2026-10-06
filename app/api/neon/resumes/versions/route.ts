@@ -1,10 +1,13 @@
 import { sql } from '../../../../../lib/neon';
 import { NextRequest, NextResponse } from 'next/server';
+import { authContext, findAccessibleResume, notFoundResume } from '../../../../../lib/apiAuth';
 
 export const dynamic = 'force-dynamic';
 
 // GET: Listar histórico de versões auditáveis de um currículo
 export async function GET(req: NextRequest) {
+  const ctx = await authContext(req);
+  if (ctx instanceof NextResponse) return ctx;
   try {
     const { searchParams } = new URL(req.url);
     const resumeId = searchParams.get('resumeId');
@@ -12,6 +15,8 @@ export async function GET(req: NextRequest) {
     if (!resumeId) {
       return NextResponse.json({ error: "resumeId obrigatório" }, { status: 400 });
     }
+
+    if (!(await findAccessibleResume(ctx, resumeId))) return notFoundResume();
 
     const rows = await sql`
       SELECT id, resume_id, version_number, title, changed_by, change_summary, created_at, data
@@ -40,12 +45,19 @@ export async function GET(req: NextRequest) {
 
 // POST: Restaurar uma versão específica do histórico
 export async function POST(req: NextRequest) {
+  const ctx = await authContext(req);
+  if (ctx instanceof NextResponse) return ctx;
   try {
-    const { resumeId, versionId, userId } = await req.json();
+    const { resumeId, versionId } = await req.json();
 
     if (!resumeId || !versionId) {
       return NextResponse.json({ error: "resumeId e versionId obrigatórios" }, { status: 400 });
     }
+
+    if (typeof resumeId !== 'string' || typeof versionId !== 'string') {
+      return NextResponse.json({ error: "resumeId e versionId obrigatórios" }, { status: 400 });
+    }
+    if (!(await findAccessibleResume(ctx, resumeId))) return notFoundResume();
 
     const versionRows = await sql`
       SELECT * FROM resume_versions 
@@ -91,7 +103,7 @@ export async function POST(req: NextRequest) {
         ${nextVer},
         ${`Restauração da Versão #${targetVersion.version_number}`},
         ${JSON.stringify(resumeData)},
-        ${userId || 'sistema'},
+        ${ctx.id},
         ${`Restaurado a partir da Versão #${targetVersion.version_number}`}
       );
     `;

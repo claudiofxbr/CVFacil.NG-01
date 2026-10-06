@@ -91,7 +91,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ resumeId, onBack, initialTe
       setIsLoading(true);
       try {
         // Carregar do Neon Postgres oficial (CVfacil.NG-01)
-        const res = await fetch(`/api/neon/resumes?id=${encodeURIComponent(resumeId)}`);
+        const res = await fetch(`/api/neon/resumes?id=${encodeURIComponent(resumeId)}`, { credentials: 'same-origin' });
         if (res.ok) {
           const resData = await res.json();
           if (resData.resume) {

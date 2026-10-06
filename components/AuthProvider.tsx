@@ -3,15 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase, isConfigValid } from '../supabase';
 import { User } from '../types';
-import { 
-  ADMIN_MASTER_NAME, 
-  ADMIN_MASTER_EMAIL, 
-  CLAUDIO_ADMIN_EMAIL, 
-  CLAUDIO_ADMIN_NAME, 
-  isMasterAdminAccount, 
-  getLocalUsers, 
-  updateLocalUser 
-} from '../services/userService';
+import { captureLegacyIds, claimPendingLegacy, fetchSession, serverLogin, serverLogout, serverRegister, type AuthResult } from '../services/authClient';
 
 interface AuthContextType {
   user: any | null;
@@ -19,8 +11,9 @@ interface AuthContextType {
   loading: boolean;
   isAdmin: boolean;
   isConfigured: boolean;
-  loginLocal: (email: string, name: string, role: string, avatar?: string, credits?: number, plan?: 'Free' | 'Premium') => void;
-  logoutLocal: () => void;
+  login: (email: string, password: string) => Promise<AuthResult>;
+  register: (email: string, password: string, name: string) => Promise<AuthResult>;
+  logoutLocal: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -29,11 +22,15 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   isAdmin: false,
   isConfigured: false,
-  loginLocal: () => {},
-  logoutLocal: () => {},
+  login: async () => ({ ok: false, message: 'Indisponível.' }),
+  register: async () => ({ ok: false, message: 'Indisponível.' }),
+  logoutLocal: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
+
+// Chaves da identidade local antiga (cliente). Nunca mais lidas como identidade: são só apagadas.
+const LEGACY_LOCAL_KEYS = ['cvfacil_local_user', 'cvfacil_local_profile'];
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<any | null>(null);
@@ -44,106 +41,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Connection state
   const [isConfigured] = useState(() => isConfigValid());
 
-  // Local Auth functions
-  const loginLocal = (
-    email: string, 
-    name: string, 
-    role: string, 
-    avatar?: string, 
-    credits?: number, 
-    plan?: 'Free' | 'Premium'
-  ) => {
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanName = name?.trim();
-
-    // 1. Consulta usuários cadastrados no banco local
-    const localUsers = getLocalUsers();
-    const existing = localUsers.find(u => u.email?.toLowerCase() === cleanEmail);
-
-    // 2. Verifica se é conta de autoridade Master ou Administrador com paridade
-    const isSpecificMaster = isMasterAdminAccount(cleanEmail, cleanName);
-    const isAdminUser = isSpecificMaster || role === 'Administrador' || existing?.role === 'Administrador';
-
-    const effectiveRole = isAdminUser ? 'Administrador' : (existing?.role || ((role as any) || 'Cliente'));
-    
-    let effectiveName = cleanName;
-    if (!effectiveName || effectiveName === 'Usuário' || effectiveName === 'Administrador') {
-      if (cleanEmail === CLAUDIO_ADMIN_EMAIL.toLowerCase()) {
-        effectiveName = CLAUDIO_ADMIN_NAME;
-      } else if (cleanEmail === ADMIN_MASTER_EMAIL.toLowerCase()) {
-        effectiveName = ADMIN_MASTER_NAME;
-      } else {
-        effectiveName = existing?.name || (cleanEmail.split('@')[0] || 'Usuário');
-      }
-    }
-
-    const effectiveCredits = isAdminUser ? 999999 : (existing?.credits ?? (credits ?? 10));
-    const effectivePlan = isAdminUser ? 'Premium' : (existing?.plan || (plan || 'Free'));
-    const effectiveId = existing?.id || (cleanEmail === CLAUDIO_ADMIN_EMAIL.toLowerCase() ? 'admin-claudio' : (isSpecificMaster ? 'admin-master' : ('local-' + Date.now())));
-
-    const localUser = { 
-      id: effectiveId, 
-      email: cleanEmail, 
-      user_metadata: { full_name: effectiveName } 
-    };
-
-    const localProfile: User = { 
-      id: localUser.id,
-      name: effectiveName, 
-      email: cleanEmail, 
-      role: effectiveRole, 
-      avatar: avatar || existing?.avatar || (isAdminUser ? `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(effectiveName)}` : ''),
-      credits: effectiveCredits,
-      plan: effectivePlan,
-      status: 'Ativo'
-    };
-    
-    localStorage.setItem('cvfacil_local_user', JSON.stringify(localUser));
-    localStorage.setItem('cvfacil_local_profile', JSON.stringify(localProfile));
-
-    // Sincroniza com a lista de usuários locais garantindo estrita paridade
-    updateLocalUser({
-      id: localUser.id,
-      name: effectiveName,
-      email: cleanEmail,
-      role: effectiveRole,
-      plan: effectivePlan,
-      status: 'Ativo',
-      credits: effectiveCredits,
-      avatar: localProfile.avatar,
-      last_login: new Date().toISOString()
-    });
-    
-    setUser(localUser);
-    setProfile(localProfile);
-    setIsAdmin(isAdminUser);
+  // Modo servidor: a identidade vem SEMPRE de GET /api/auth/me (cookie HttpOnly).
+  const refreshSession = async () => {
+    const identity = await fetchSession();
+    // Reivindica currículos legados ANTES de publicar o usuário, para o Dashboard já listá-los.
+    if (identity) await claimPendingLegacy();
+    setUser(identity ? identity.user : null);
+    setProfile(identity ? identity.profile : null);
+    setIsAdmin(identity ? identity.isAdmin : false);
     setLoading(false);
+    return identity;
   };
 
-  const logoutLocal = () => {
-    localStorage.removeItem('cvfacil_local_user');
-    localStorage.removeItem('cvfacil_local_profile');
+  const login = async (email: string, password: string): Promise<AuthResult> => {
+    const result = await serverLogin(email.trim().toLowerCase(), password);
+    if (result.ok && !(await refreshSession())) {
+      return { ok: false, message: 'Não foi possível iniciar a sessão. Tente novamente.' };
+    }
+    return result;
+  };
+
+  const register = async (email: string, password: string, name: string): Promise<AuthResult> => {
+    const result = await serverRegister(email.trim().toLowerCase(), password, name.trim());
+    if (result.ok && !(await refreshSession())) {
+      return { ok: false, message: 'Não foi possível iniciar a sessão. Tente novamente.' };
+    }
+    return result;
+  };
+
+  const logoutLocal = async () => {
+    await serverLogout();
+    try { LEGACY_LOCAL_KEYS.forEach((k) => localStorage.removeItem(k)); } catch { /* storage indisponível */ }
     setUser(null);
     setProfile(null);
     setIsAdmin(false);
   };
 
   useEffect(() => {
-    // Se o Supabase não estiver configurado, usa o modo local
+    // Se o Supabase não estiver configurado, usa a sessão própria do servidor
     if (!isConfigured) {
-      // Garante que o banco de usuários locais está inicializado
-      getLocalUsers();
-
-      const savedUser = localStorage.getItem('cvfacil_local_user');
-      const savedProfile = localStorage.getItem('cvfacil_local_profile');
-      
-      if (savedUser && savedProfile) {
-        setUser(JSON.parse(savedUser));
-        const p: User = JSON.parse(savedProfile);
-        setProfile(p);
-        setIsAdmin(p.role === 'Administrador' || isMasterAdminAccount(p.email, p.name));
-      }
-      setLoading(false);
+      captureLegacyIds(); // guarda os ids antigos antes de apagar a identidade local
+      try { LEGACY_LOCAL_KEYS.forEach((k) => localStorage.removeItem(k)); } catch { /* storage indisponível */ }
+      void refreshSession();
       return;
     }
 
@@ -154,17 +93,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (session?.user) {
         setUser(session.user);
         await fetchProfile(session.user.id, session.user);
-      } else {
-        // Check for local session if no supabase session
-        const savedUser = localStorage.getItem('cvfacil_local_user');
-        const savedProfile = localStorage.getItem('cvfacil_local_profile');
-        
-        if (savedUser && savedProfile) {
-          setUser(JSON.parse(savedUser));
-          const p = JSON.parse(savedProfile);
-          setProfile(p);
-          setIsAdmin(p.role === 'Administrador' || isMasterAdminAccount(p.email, p.name));
-        }
       }
       setLoading(false);
     };
@@ -246,7 +174,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, isAdmin, isConfigured, loginLocal, logoutLocal }}>
+    <AuthContext.Provider value={{ user, profile, loading, isAdmin, isConfigured, login, register, logoutLocal }}>
       {children}
     </AuthContext.Provider>
   );

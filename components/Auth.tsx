@@ -3,16 +3,14 @@ import { compressImage } from '../services/resumeService';
 import { supabase, isConfigValid } from '../supabase';
 import { useAuth } from './AuthProvider';
 import { 
-  ADMIN_MASTER_NAME, 
   ADMIN_MASTER_EMAIL, 
   CLAUDIO_ADMIN_EMAIL, 
   CLAUDIO_ADMIN_NAME, 
-  isMasterAdminAccount, 
-  getLocalUsers 
+  isMasterAdminAccount
 } from '../services/userService';
 
 const Auth: React.FC = () => {
-  const { loginLocal } = useAuth();
+  const { login, register } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -93,54 +91,24 @@ const Auth: React.FC = () => {
         return;
     }
 
-    if (password.length < 6) {
-        setNotification({ message: "A senha deve ter pelo menos 6 caracteres.", type: 'error' });
+    if (isLogin ? password.length < 1 : password.length < 8) {
+        setNotification({ message: isLogin ? "Informe sua senha." : "A senha deve ter pelo menos 8 caracteres.", type: 'error' });
         return;
     }
 
     if (!isConfigValid()) {
+        // Sem Supabase: a credencial é validada SEMPRE no servidor (sessão por cookie HttpOnly).
         setIsLoading(true);
-        setTimeout(() => {
-            const cleanEmail = email.trim().toLowerCase();
-            const localUsers = getLocalUsers();
-            
-            // 1. Procura se a conta já existe localmente no banco
-            const existingUser = localUsers.find(u => u.email.toLowerCase() === cleanEmail);
-
-            // 2. Determina se é Administrador Master ou Administrador com paridade
-            const isMaster = isMasterAdminAccount(cleanEmail, name) || 
-                             cleanEmail === CLAUDIO_ADMIN_EMAIL.toLowerCase() ||
-                             cleanEmail === ADMIN_MASTER_EMAIL.toLowerCase() ||
-                             existingUser?.role === 'Administrador' || 
-                             userRole === 'Administrador';
-
-            const effectiveRole = isMaster ? 'Administrador' : (existingUser?.role || userRole);
-            
-            let effectiveName = existingUser?.name;
-            if (!effectiveName) {
-              if (cleanEmail === CLAUDIO_ADMIN_EMAIL.toLowerCase()) {
-                effectiveName = name.trim() || CLAUDIO_ADMIN_NAME;
-              } else if (cleanEmail === ADMIN_MASTER_EMAIL.toLowerCase()) {
-                effectiveName = ADMIN_MASTER_NAME;
-              } else {
-                effectiveName = name.trim() || (isLogin ? (cleanEmail.split('@')[0] || 'Usuário') : 'Usuário');
-              }
-            } else if (name.trim()) {
-              effectiveName = name.trim();
-            }
-
-            const effectiveCredits = effectiveRole === 'Administrador' ? 999999 : (existingUser?.credits ?? 10);
-            const effectivePlan = effectiveRole === 'Administrador' ? 'Premium' : (existingUser?.plan || 'Free');
-            const effectiveAvatar = avatarPreview || existingUser?.avatar || undefined;
-
-            loginLocal(cleanEmail, effectiveName, effectiveRole, effectiveAvatar, effectiveCredits, effectivePlan);
-            
-            setNotification({ 
-              message: `${isLogin ? 'Login' : 'Cadastro'} realizado com sucesso como ${effectiveName}${effectiveRole === 'Administrador' ? ' (Administrador Master)' : ''}!`, 
-              type: 'success' 
-            });
+        try {
+            const result = isLogin
+                ? await login(email, password)
+                : await register(email, password, name);
+            setNotification(result.ok
+                ? { message: `${isLogin ? 'Login' : 'Cadastro'} realizado com sucesso!`, type: 'success' }
+                : { message: result.message, type: 'error' });
+        } finally {
             setIsLoading(false);
-        }, 500);
+        }
         return;
     }
 
@@ -435,22 +403,9 @@ const Auth: React.FC = () => {
                     <button
                         type="button"
                         onClick={() => {
-                            setIsLoading(true);
-                            setTimeout(() => {
-                                loginLocal(
-                                    CLAUDIO_ADMIN_EMAIL,
-                                    CLAUDIO_ADMIN_NAME,
-                                    'Administrador',
-                                    'https://api.dicebear.com/7.x/initials/svg?seed=Claudio',
-                                    999999,
-                                    'Premium'
-                                );
-                                setNotification({
-                                    message: `Acesso Master concedido: ${CLAUDIO_ADMIN_NAME} (${CLAUDIO_ADMIN_EMAIL})!`,
-                                    type: 'success'
-                                });
-                                setIsLoading(false);
-                            }, 400);
+                            setIsLogin(true);
+                            setEmail(CLAUDIO_ADMIN_EMAIL);
+                            setNotification({ message: 'Informe a senha desta conta para entrar.', type: 'error' });
                         }}
                         disabled={isLoading}
                         className="w-full bg-[#1e293b]/50 hover:bg-[#1e293b] border border-amber-500/40 hover:border-amber-500 text-stone-200 hover:text-white font-semibold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-sm group"
@@ -463,22 +418,9 @@ const Auth: React.FC = () => {
                     <button
                         type="button"
                         onClick={() => {
-                            setIsLoading(true);
-                            setTimeout(() => {
-                                loginLocal(
-                                    ADMIN_MASTER_EMAIL,
-                                    ADMIN_MASTER_NAME,
-                                    'Administrador',
-                                    'https://api.dicebear.com/7.x/initials/svg?seed=Admin',
-                                    999999,
-                                    'Premium'
-                                );
-                                setNotification({
-                                    message: `Acesso concedido: ${ADMIN_MASTER_NAME}!`,
-                                    type: 'success'
-                                });
-                                setIsLoading(false);
-                            }, 400);
+                            setIsLogin(true);
+                            setEmail(ADMIN_MASTER_EMAIL);
+                            setNotification({ message: 'Informe a senha desta conta para entrar.', type: 'error' });
                         }}
                         disabled={isLoading}
                         className="w-full bg-[#1e293b]/30 hover:bg-[#1e293b]/60 border border-white/10 hover:border-white/20 text-stone-300 hover:text-white font-medium py-2 px-4 rounded-xl text-[11px] flex items-center justify-center gap-2 transition-all"

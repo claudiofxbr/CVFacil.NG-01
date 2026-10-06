@@ -63,28 +63,10 @@ const Dashboard: React.FC<{
       return;
     }
 
-    const isLocalUser = user.id?.startsWith('local-');
-
-    if (isLocalUser || !isConfigured) {
-      const localResumes = localStorage.getItem('cvfacil_local_resumes');
-      if (localResumes) {
-        try {
-          const parsed = JSON.parse(localResumes);
-          const allUserResumes = Array.isArray(parsed) ? parsed.filter((r: any) => r.userId === user.id) : [];
-          sortAndSetResumes(allUserResumes.filter((r: any) => !r.deletedAt));
-          setTrashResumes(allUserResumes.filter((r: any) => Boolean(r.deletedAt)));
-        } catch (e) {
-          console.error("Erro ao carregar currículos locais:", e);
-        }
-      }
-      setIsLoading(false);
-      return;
-    }
-
     try {
       const [activeList, trashList] = await Promise.all([
-        neonResumeService.getResumes(user.id, isAdmin ? 'admin' : undefined),
-        neonResumeService.getTrashResumes(user.id, isAdmin ? 'admin' : undefined)
+        neonResumeService.getResumes(),
+        neonResumeService.getTrashResumes()
       ]);
       sortAndSetResumes(activeList);
       setTrashResumes(trashList);
@@ -167,7 +149,7 @@ const Dashboard: React.FC<{
   // Mover para a Lixeira (Soft Delete)
   const handleMoveToTrash = async (resume: ResumeData) => {
     try {
-      await neonResumeService.moveToTrash(resume.id, user?.id, isAdmin ? 'admin' : undefined);
+      await neonResumeService.moveToTrash(resume.id);
       setResumes(prev => prev.filter(r => r.id !== resume.id));
       setTrashResumes(prev => [{ ...resume, deletedAt: new Date().toISOString() }, ...prev]);
       if (previewingResume?.id === resume.id) {
@@ -195,7 +177,7 @@ const Dashboard: React.FC<{
     }
 
     try {
-      await neonResumeService.restoreFromTrash(resume.id, user?.id, isAdmin ? 'admin' : undefined);
+      await neonResumeService.restoreFromTrash(resume.id);
       setTrashResumes(prev => prev.filter(r => r.id !== resume.id));
       const restored = { ...resume, deletedAt: null };
       setResumes(prev => sortAndSetResumesList([restored, ...prev]));
@@ -211,7 +193,7 @@ const Dashboard: React.FC<{
   // Exclusão Permanente (Hard Delete)
   const handlePermanentDelete = async (resume: ResumeData) => {
     try {
-      await neonResumeService.permanentDelete(resume.id, user?.id, isAdmin ? 'admin' : undefined);
+      await neonResumeService.permanentDelete(resume.id);
       setTrashResumes(prev => prev.filter(r => r.id !== resume.id));
       setResumes(prev => prev.filter(r => r.id !== resume.id));
       setNotification({
@@ -243,7 +225,7 @@ const Dashboard: React.FC<{
   const handleRestoreVersion = async (version: ResumeVersion) => {
     if (!versionDrawerResume) return;
     try {
-      const restored = await neonResumeService.restoreVersion(versionDrawerResume.id, version.id, user?.id);
+      const restored = await neonResumeService.restoreVersion(versionDrawerResume.id, version.id);
       if (restored) {
         setResumes(prev => prev.map(r => r.id === restored.id ? restored : r));
         if (previewingResume?.id === restored.id) {

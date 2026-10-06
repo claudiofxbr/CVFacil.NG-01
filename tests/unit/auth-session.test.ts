@@ -27,6 +27,10 @@ vi.mock('../../lib/neon', () => ({
       u.password_hash = values[0];
       return [{ id: u.id }];
     }
+    if (text.includes('SELECT name, plan, credits, avatar_url FROM users')) {
+      const u = users.find((x) => x.id === values[0]);
+      return u ? [{ name: u.name, plan: 'free', credits: 5, avatar_url: null }] : [];
+    }
     if (text.includes('INSERT INTO sessions')) {
       sessions.push({ id: values[0], user_id: values[1], token_hash: values[2], expires: Date.now() + values[3] * 1000, revoked: false });
       return [];
@@ -231,7 +235,7 @@ describe('sessão / requireUser / me / whoami', () => {
     const { token } = await signup('boss@x.com');
     expect((await (await me(withCookie(token))).json()).role).toBe('user');
     process.env.ADMIN_EMAILS = ' Outro@x.com , BOSS@x.com ';
-    expect(await (await me(withCookie(token))).json()).toEqual({ id: db.users[0].id, email: 'boss@x.com', role: 'admin' });
+    expect(await (await me(withCookie(token))).json()).toMatchObject({ id: db.users[0].id, email: 'boss@x.com', role: 'admin', plan: 'free', credits: 5 });
     const other = await signup('comum@x.com');
     expect((await (await me(withCookie(other.token))).json()).role).toBe('user');
   });
