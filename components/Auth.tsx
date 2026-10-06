@@ -158,9 +158,11 @@ const Auth: React.FC = () => {
                                 <span className="text-[9px] font-extrabold uppercase leading-tight tracking-wider text-stone-400">CARREGAR FOTO<br/>3X4</span>
                             </div>
                         )}
-                        <input 
-                            type="file" 
-                            className="hidden" 
+                        <input
+                            type="file"
+                            id="auth-avatar"
+                            name="avatar"
+                            className="hidden"
                             accept="image/*" 
                             onChange={handleAvatarChange} 
                         />
@@ -170,11 +172,13 @@ const Auth: React.FC = () => {
 
                 {/* NOME COMPLETO - Exibido em Login e Cadastro */}
                 <div className="space-y-1.5 animate-in fade-in duration-300">
-                    <label className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">NOME COMPLETO</label>
+                    <label htmlFor="auth-name" className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">NOME COMPLETO</label>
                     <div className="relative">
                         <span className="material-symbols-outlined absolute left-3 top-3 text-stone-500 text-[18px]">person</span>
-                        <input 
+                        <input
                             type="text"
+                            id="auth-name"
+                            name="name"
                             autoComplete="name"
                             placeholder="Seu Nome"
                             value={name}
@@ -187,11 +191,13 @@ const Auth: React.FC = () => {
 
                 {/* EMAIL */}
                 <div className="space-y-1.5">
-                    <label className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">EMAIL</label>
+                    <label htmlFor="auth-email" className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">EMAIL</label>
                     <div className="relative">
                         <span className="material-symbols-outlined absolute left-3 top-3 text-stone-500 text-[18px]">mail</span>
-                        <input 
+                        <input
                             type="email"
+                            id="auth-email"
+                            name="email"
                             autoComplete="email"
                             placeholder="seu@email.com"
                             value={email}
@@ -204,11 +210,13 @@ const Auth: React.FC = () => {
 
                 {/* SENHA */}
                 <div className="space-y-1.5">
-                    <label className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">SENHA</label>
+                    <label htmlFor="auth-password" className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">SENHA</label>
                     <div className="relative">
                         <span className="material-symbols-outlined absolute left-3 top-3 text-stone-500 text-[18px]">lock</span>
-                        <input 
+                        <input
                             type="password"
+                            id="auth-password"
+                            name="password"
                             autoComplete={isLogin ? 'current-password' : 'new-password'}
                             placeholder="••••••••"
                             value={password}

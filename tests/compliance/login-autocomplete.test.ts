@@ -8,6 +8,22 @@ import { join } from 'node:path';
  */
 const auth = readFileSync(join(__dirname, '..', '..', 'components', 'Auth.tsx'), 'utf8');
 
+describe('login: id, name e label associado (htmlFor)', () => {
+  it.each([
+    ['avatar', 'auth-avatar', 'avatar'],
+    ['nome', 'auth-name', 'name'],
+    ['e-mail', 'auth-email', 'email'],
+    ['senha', 'auth-password', 'password'],
+  ])('campo %s tem id="%s" e name="%s"', (_campo, id, name) => {
+    expect(auth).toContain(`id="${id}"`);
+    expect(auth).toContain(`name="${name}"`);
+  });
+
+  it.each(['auth-name', 'auth-email', 'auth-password'])('existe <label htmlFor="%s">', (id) => {
+    expect(auth).toContain(`htmlFor="${id}"`);
+  });
+});
+
 describe('login: atributos autocomplete', () => {
   it.each([
     ['nome', /autoComplete="name"/],
