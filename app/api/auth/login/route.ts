@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { sql } from '../../../../lib/neon';
 import { verifyPassword, verifyDummy } from '../../../../lib/password';
 import { createSession, SESSION_COOKIE, sessionCookieOptions } from '../../../../lib/session';
-import { clientIp, isRateLimited, recordFailure, resetAttempts } from '../../../../lib/authRateLimit';
+import { clientIp, AUTH_MAX_ATTEMPTS, AUTH_WINDOW_MS } from '../../../../lib/authRateLimit';
+import { isLimited, recordFailure, resetKey } from '../../../../lib/rateLimit';
 import { normalizeEmail, readJson, validPasswordShape } from '../../../../lib/authInput';
 
 export const dynamic = 'force-dynamic';
@@ -16,7 +17,7 @@ export async function POST(req: Request) {
   if (!email || !validPasswordShape(password)) return invalid();
 
   const key = `login:${clientIp(req)}:${email}`;
-  if (isRateLimited(key)) {
+  if (await isLimited(key, AUTH_MAX_ATTEMPTS, AUTH_WINDOW_MS)) {
     return NextResponse.json({ error: 'TOO_MANY_ATTEMPTS' }, { status: 429, headers: { 'Retry-After': '900' } });
   }
 
@@ -27,10 +28,10 @@ export async function POST(req: Request) {
       ? await verifyPassword(password, user.password_hash)
       : (await verifyDummy(password), false);
     if (!user || !ok) {
-      recordFailure(key);
+      await recordFailure(key, AUTH_WINDOW_MS);
       return invalid();
     }
-    resetAttempts(key);
+    await resetKey(key);
     const { token, maxAge } = await createSession(String(user.id));
     const res = NextResponse.json({ ok: true });
     res.cookies.set(SESSION_COOKIE, token, sessionCookieOptions(maxAge));

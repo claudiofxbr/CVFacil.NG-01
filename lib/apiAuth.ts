@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server';
 import { requireUser, AuthError } from './requireUser';
 import { isAdminEmail } from './session';
 import { sql } from './neon';
-import { exceedsUserLimit } from './userRateLimit';
+import { hitExceeds } from './rateLimit';
+
+export const AI_LIMIT_PER_MINUTE = 20;
 
 export interface AuthContext {
   id: string;
@@ -39,7 +41,7 @@ export async function findAccessibleResume(ctx: AuthContext, id: string): Promis
 export async function aiGuard(req: Request): Promise<AuthContext | NextResponse> {
   const ctx = await authContext(req);
   if (ctx instanceof NextResponse) return ctx;
-  if (exceedsUserLimit(`ai:${ctx.id}`)) {
+  if (await hitExceeds(`ai:${ctx.id}`, AI_LIMIT_PER_MINUTE, 60_000)) {
     return NextResponse.json(
       { error: 'Muitas solicitações de IA em pouco tempo. Aguarde um minuto e tente novamente.', code: 'AI_RATE_LIMITED' },
       { status: 429, headers: { 'Retry-After': '60' } },

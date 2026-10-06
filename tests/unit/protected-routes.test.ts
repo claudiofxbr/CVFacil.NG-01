@@ -24,7 +24,7 @@ import { POST as setupPost, GET as setupGet } from '../../app/api/neon/setup/rou
 import { POST as editor } from '../../app/api/gemini/editor/route';
 import { POST as importV1 } from '../../app/api/gemini/import-pdf/route';
 import { POST as importV2 } from '../../app/api/gemini/import-pdf-v2/route';
-import { __resetUserRateLimitForTests } from '../../lib/userRateLimit';
+import { __resetRateLimitStoreForTests as __resetUserRateLimitForTests } from '../../lib/rateLimit';
 import { NextRequest } from 'next/server';
 
 const USER = { id: 'u1', email: 'user@x.com' };

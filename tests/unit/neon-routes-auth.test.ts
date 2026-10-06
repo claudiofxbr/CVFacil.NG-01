@@ -62,6 +62,7 @@ vi.mock('../../lib/neon', () => ({
       return versions.filter((x) => x.id === v[0] && x.resume_id === v[1]);
     }
     if (t.startsWith('UPDATE resumes SET full_name')) { resumes.find((r) => r.id === v[v.length - 1]).data = v[v.length - 2]; return []; }
+    if (t.includes('rate_limits')) throw new Error('rate store off');
     throw new Error('query inesperada: ' + t);
   },
 }));
@@ -69,7 +70,7 @@ vi.mock('../../lib/neon', () => ({
 import { GET, POST, DELETE, PATCH } from '../../app/api/neon/resumes/route';
 import { GET as vGET, POST as vPOST } from '../../app/api/neon/resumes/versions/route';
 import { POST as register } from '../../app/api/auth/register/route';
-import { __resetRateLimitForTests } from '../../lib/authRateLimit';
+import { __resetRateLimitStoreForTests as __resetRateLimitForTests } from '../../lib/rateLimit';
 import { NextRequest } from 'next/server';
 
 const A = { id: 'user-a', email: 'a@x.com' };

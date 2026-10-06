@@ -44,6 +44,7 @@ vi.mock('../../lib/neon', () => ({
       sessions.filter((x) => x.token_hash === values[0]).forEach((x) => (x.revoked = true));
       return [];
     }
+    if (text.includes('rate_limits')) throw new Error('rate store off');
     throw new Error('query inesperada: ' + text);
   },
 }));
@@ -56,7 +57,7 @@ import { GET as whoami } from '../../app/api/payments/whoami/route';
 import { requireUser } from '../../lib/requireUser';
 import { hashPassword, verifyPassword } from '../../lib/password';
 import { hashToken, SESSION_COOKIE } from '../../lib/session';
-import { __resetRateLimitForTests } from '../../lib/authRateLimit';
+import { __resetRateLimitStoreForTests as __resetRateLimitForTests } from '../../lib/rateLimit';
 
 const PW = 'senha-forte-123';
 const post = (path: string, body: unknown, headers: Record<string, string> = {}) =>
