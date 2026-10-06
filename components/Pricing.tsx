@@ -51,6 +51,7 @@ const Pricing: React.FC = () => {
                     <li className="flex gap-3 text-sm text-stone-300"><span className="material-symbols-outlined text-primary text-[18px]">check_circle</span>Criação de 1 currículo</li>
                     <li className="flex gap-3 text-sm text-stone-300"><span className="material-symbols-outlined text-primary text-[18px]">check_circle</span>Layouts básicos</li>
                     <li className="flex gap-3 text-sm text-stone-300"><span className="material-symbols-outlined text-primary text-[18px]">check_circle</span>Exportação PDF</li>
+                    <li className="flex gap-3 text-sm text-stone-300"><span className="material-symbols-outlined text-primary text-[18px]">check_circle</span>Importação de PDF 01</li>
                 </ul>
                 <button onClick={() => buy('basico')} disabled={busyPlan !== null} className="w-full py-4 rounded-xl border border-forest-border text-white font-bold hover:bg-forest-border transition-colors disabled:opacity-50 disabled:cursor-not-allowed">{busyPlan === 'basico' ? 'Redirecionando...' : 'Criar Meu Currículo'}</button>
             </div>
@@ -70,7 +71,7 @@ const Pricing: React.FC = () => {
                     <li className="flex gap-3 text-sm text-stone-300"><span className="material-symbols-outlined text-primary text-[18px]">check_circle</span>Criação de até 6 currículos</li>
                     <li className="flex gap-3 text-sm text-stone-300"><span className="material-symbols-outlined text-primary text-[18px]">check_circle</span>Acesso a todos os layouts</li>
                     <li className="flex gap-3 text-sm text-stone-300"><span className="material-symbols-outlined text-primary text-[18px]">check_circle</span>Exportação PDF, DOCX, HTML</li>
-                    <li className="flex gap-3 text-sm text-stone-300"><span className="material-symbols-outlined text-primary text-[18px]">check_circle</span>Importação de PDF</li>
+                    <li className="flex gap-3 text-sm text-stone-300"><span className="material-symbols-outlined text-primary text-[18px]">check_circle</span>Importação de PDF 03</li>
                 </ul>
                 <button onClick={() => buy('padrao')} disabled={busyPlan !== null} className="w-full py-4 rounded-xl bg-primary hover:bg-secondary text-white font-bold transition-colors shadow-lg shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed">{busyPlan === 'padrao' ? 'Redirecionando...' : 'Quero Mais Opções'}</button>
             </div>
@@ -90,6 +91,7 @@ const Pricing: React.FC = () => {
                     <li className="flex gap-3 text-sm text-stone-300"><span className="material-symbols-outlined text-primary text-[18px]">check_circle</span>Todos os benefícios do Padrão</li>
                     <li className="flex gap-3 text-sm text-stone-300"><span className="material-symbols-outlined text-primary text-[18px]">check_circle</span>Suporte Prioritário</li>
                     <li className="flex gap-3 text-sm text-stone-300"><span className="material-symbols-outlined text-primary text-[18px]">check_circle</span>Templates Exclusivos</li>
+                    <li className="flex gap-3 text-sm text-stone-300"><span className="material-symbols-outlined text-primary text-[18px]">check_circle</span>Importação de PDF 09</li>
                 </ul>
                 <button onClick={() => buy('premium')} disabled={busyPlan !== null} className="w-full py-4 rounded-xl border border-forest-border text-white font-bold hover:bg-forest-border transition-colors disabled:opacity-50 disabled:cursor-not-allowed">{busyPlan === 'premium' ? 'Redirecionando...' : 'Plano Completo'}</button>
             </div>
