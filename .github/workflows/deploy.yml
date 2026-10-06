@@ -46,6 +46,7 @@ jobs:
           ADMIN_EMAILS: ${{ secrets.ADMIN_EMAILS }}
           PAGBANK_TOKEN: ${{ secrets.PAGBANK_TOKEN }}
           PAGBANK_ENV: ${{ secrets.PAGBANK_ENV }}
+          SANDBOX_TESTER_EMAILS: ${{ secrets.SANDBOX_TESTER_EMAILS }}
         run: |
           if [ -n "$DATABASE_URL" ]; then
             B64=$(printf '%s' "$DATABASE_URL" | base64 -w0)
@@ -72,11 +73,16 @@ jobs:
             echo "::add-mask::$B64"
             echo "PAGBANK_ENV_B64=$B64" >> "$GITHUB_ENV"
           fi
+          if [ -n "$SANDBOX_TESTER_EMAILS" ]; then
+            B64=$(printf '%s' "$SANDBOX_TESTER_EMAILS" | base64 -w0)
+            echo "::add-mask::$B64"
+            echo "TESTER_B64=$B64" >> "$GITHUB_ENV"
+          fi
 
       - name: Executar Deploy via SSH na VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
-          envs: DB_B64,GEMINI_B64,ADMIN_B64,PAGBANK_TOKEN_B64,PAGBANK_ENV_B64
+          envs: DB_B64,GEMINI_B64,ADMIN_B64,PAGBANK_TOKEN_B64,PAGBANK_ENV_B64,TESTER_B64
           host: ${{ secrets.VPS_HOST || '69.62.87.38' }}
           username: ${{ secrets.VPS_USER || 'root' }}
           key: ${{ secrets.VPS_SSH_KEY }}
@@ -168,6 +174,15 @@ jobs:
                 mv .env.tmp .env )
               unset NOVO
               echo "PAGBANK_ENV do GitHub Secret aplicado ao .env"
+            fi
+            if [ -n "$TESTER_B64" ]; then
+              NOVO=$(printf '%s' "$TESTER_B64" | base64 -d)
+              ( umask 077
+                grep -v '^SANDBOX_TESTER_EMAILS=' .env > .env.tmp 2>/dev/null || true
+                printf 'SANDBOX_TESTER_EMAILS=%s\n' "$NOVO" >> .env.tmp
+                mv .env.tmp .env )
+              unset NOVO
+              echo "SANDBOX_TESTER_EMAILS do GitHub Secret aplicado ao .env"
             fi
 
             # 3. Instalação de dependências e Build de Produção

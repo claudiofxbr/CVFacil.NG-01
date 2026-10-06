@@ -15,8 +15,17 @@ describe('deploy.yml: PagBank segue o padrão base64 de ADMIN_EMAILS', () => {
       expect(deploy).toContain(`grep -v '^${name}=' .env`);
     }
     expect(deploy).toMatch(/envs: DB_B64,GEMINI_B64,ADMIN_B64,PAGBANK_TOKEN_B64,PAGBANK_ENV_B64/);
-    expect(deploy.match(/::add-mask::/g)!.length).toBeGreaterThanOrEqual(5);
+    expect(deploy.match(/::add-mask::/g)!.length).toBeGreaterThanOrEqual(6);
     expect(deploy).toContain('chmod 600 "$APP_DIR/.env"');
+  });
+  it('SANDBOX_TESTER_EMAILS segue o mesmo padrão (env do passo, base64 mascarado, envs do ssh-action, .env)', () => {
+    expect(deploy).toContain('SANDBOX_TESTER_EMAILS: ${{ secrets.SANDBOX_TESTER_EMAILS }}');
+    expect(deploy).toContain(`B64=$(printf '%s' "$SANDBOX_TESTER_EMAILS" | base64 -w0)`);
+    expect(deploy).toContain('echo "TESTER_B64=$B64" >> "$GITHUB_ENV"');
+    expect(deploy).toMatch(/envs: [^\n]*TESTER_B64/);
+    expect(deploy).toContain("grep -v '^SANDBOX_TESTER_EMAILS=' .env");
+    expect(deploy).toContain(`printf 'SANDBOX_TESTER_EMAILS=%s\\n' "$NOVO"`);
+    expect(envExample).toMatch(/^SANDBOX_TESTER_EMAILS=$/m);
   });
   it('o health check do deploy não depende do PagBank', () => {
     const afterBuild = deploy.slice(deploy.indexOf('Reinicializa'));
