@@ -3,22 +3,16 @@ on:
   push:
     branches: ['diag/**']
 jobs:
-  logs:
+  status:
     runs-on: ubuntu-latest
     steps:
-      - name: Acessos ao webhook nos logs do servidor (somente leitura)
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST || '69.62.87.38' }}
-          username: ${{ secrets.VPS_USER || 'root' }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script_stop: false
-          script: |
-            echo "=== hora do servidor (UTC): $(date -u +%H:%M:%S)"
-            echo "=== logs de acesso do nginx que citam pagbank/webhook ou payments/"
-            for f in /var/log/nginx/access.log /var/log/nginx/access.log.1; do [ -f "$f" ] && grep -E "pagbank/webhook|/api/payments/|/payments/return" "$f" | sed -E 's/\?[^ "]*//' | awk '{print $1, $4, $6, $7, $9}' | tail -25; done
-            echo "=== logs do Traefik (container) que citam webhook"
-            docker logs --since 6h $(docker ps -q --filter name=easypanel-traefik) 2>&1 | grep -E "pagbank/webhook" | tail -10 | cut -c1-300
-            echo "=== logs de erro do app (pm2) ultimas linhas"
-            pm2 logs cvfacil-ng --nostream --err --lines 40 2>/dev/null | sed -E 's#postgres(ql)?://[^ ]+#<db-url>#g' | tail -25
-            echo "=== fim"
+      - uses: actions/checkout@v4
+      - name: Consulta o checkout no sandbox (somente leitura)
+        env:
+          DB_URL: ${{ secrets.DATABASE_URL }}
+          PAGBANK_TOKEN: ${{ secrets.PAGBANK_TOKEN }}
+        run: |
+          echo "::add-mask::$DB_URL"
+          CID=$(psql "$DB_URL" -At -c "SELECT psp_order_id FROM orders ORDER BY created_at DESC LIMIT 1;" 2>/dev/null)
+          echo "checkout consultado: $CID"
+          CHECKOUT_ID="$CID" node diag/checkout-status.mjs
