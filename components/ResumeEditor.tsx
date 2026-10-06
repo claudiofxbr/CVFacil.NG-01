@@ -58,35 +58,16 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ resumeId, onBack, initialTe
       operationType: operation,
       path,
       authInfo: {
-        userId: user?.id,
-        email: user?.email
+        userId: user?.id
       }
     };
-    console.error('Supabase Error:', JSON.stringify(errInfo));
+    console.error('Erro de persistência:', JSON.stringify(errInfo));
     setError(`Erro na operação ${operation}: ${error.message}`);
   };
 
   useEffect(() => {
     const loadResume = async () => {
       if (!resumeId) return;
-
-      // 1. Tentar carregar imediatamente do cache local síncrono para zero-delay
-      try {
-        const cachedCurrent = localStorage.getItem('cvfacil_current_editing_resume');
-        if (cachedCurrent) {
-          const parsed = JSON.parse(cachedCurrent);
-          if (parsed && (parsed.id === resumeId || !resumeId.startsWith('local-'))) {
-            setResumeData(parsed);
-          }
-        }
-        const localResumes = JSON.parse(localStorage.getItem('cvfacil_local_resumes') || '[]');
-        const found = localResumes.find((r: ResumeData) => r.id === resumeId);
-        if (found) {
-          setResumeData(found);
-        }
-      } catch (e) {
-        console.warn("Aviso ao ler cache local:", e);
-      }
 
       setIsLoading(true);
       try {
@@ -99,13 +80,6 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ resumeId, onBack, initialTe
             setIsLoading(false);
             return;
           }
-        }
-        
-        // Fallback local se não encontrado no servidor
-        const localResumes = JSON.parse(localStorage.getItem('cvfacil_local_resumes') || '[]');
-        const found = localResumes.find((r: ResumeData) => r.id === resumeId);
-        if (found) {
-          setResumeData(found);
         }
       } catch (err: any) {
         console.error("Erro ao carregar do Neon:", err);

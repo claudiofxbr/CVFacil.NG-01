@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { buildAiFailure, isApiKeyUsable, isAuthError } from "../../../../lib/geminiErrors";
 import { NextRequest, NextResponse } from "next/server";
+import { aiGuard } from "../../../../lib/apiAuth";
 
 const resumeSchema = {
   type: Type.OBJECT,
@@ -73,6 +74,8 @@ const resumeSchema = {
 };
 
 export async function POST(req: NextRequest) {
+  const guard = await aiGuard(req);
+  if (guard instanceof NextResponse) return guard;
   try {
     const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
     if (!isApiKeyUsable(apiKey)) {

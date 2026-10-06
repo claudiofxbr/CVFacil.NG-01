@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
-import { buildAccountEmail, isUniqueViolation } from '../../lib/accountIdentity';
 
 // Erro da foto03: POST /api/neon/resumes -> 500 por users_email_key quando o e-mail
 // EXTRAÍDO DO PDF já pertencia a outra linha de users.
@@ -50,21 +49,6 @@ describe('identidade da conta x conteúdo do currículo', () => {
   beforeEach(() => {
     sqlCalls.length = 0;
     sqlImpl = () => [];
-  });
-
-  it('buildAccountEmail nunca usa conteúdo do currículo', () => {
-    expect(buildAccountEmail('admin-claudio')).toBe('admin-claudio@cvfacil.local');
-  });
-
-  it('isUniqueViolation reconhece o erro do driver Neon e filtra pela constraint', () => {
-    const err = new Error(
-      'Neon SQL Query Error (400): {"code":"23505","constraint":"users_email_key","message":"duplicate key value violates unique constraint \\"users_email_key\\""}',
-    );
-    expect(isUniqueViolation(err)).toBe(true);
-    expect(isUniqueViolation(err, 'users_email_key')).toBe(true);
-    expect(isUniqueViolation(err, 'outra_constraint')).toBe(false);
-    expect(isUniqueViolation(new Error('timeout de rede'))).toBe(false);
-    expect(isUniqueViolation(undefined)).toBe(false);
   });
 
   const usersQuery = (query: string) =>

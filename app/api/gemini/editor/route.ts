@@ -1,7 +1,10 @@
 import { GoogleGenAI } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
+import { aiGuard } from "../../../../lib/apiAuth";
 
 export async function POST(req: NextRequest) {
+  const guard = await aiGuard(req);
+  if (guard instanceof NextResponse) return guard;
   try {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {

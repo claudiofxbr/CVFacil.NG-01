@@ -1,13 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { compressImage } from '../services/resumeService';
-import { supabase, isConfigValid } from '../supabase';
 import { useAuth } from './AuthProvider';
-import { 
-  ADMIN_MASTER_EMAIL, 
-  CLAUDIO_ADMIN_EMAIL, 
-  CLAUDIO_ADMIN_NAME, 
-  isMasterAdminAccount
-} from '../services/userService';
 
 const Auth: React.FC = () => {
   const { login, register } = useAuth();
@@ -16,13 +9,8 @@ const Auth: React.FC = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [userRole, setUserRole] = useState<'Cliente' | 'Administrador'>('Cliente');
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-
-  // Estados para o Controle de Acesso ao Admin (Código 7511)
-  const [showAdminCodeModal, setShowAdminCodeModal] = useState(false);
-  const [adminCodeInput, setAdminCodeInput] = useState("");
 
   useEffect(() => {
     if (notification) {
@@ -53,31 +41,6 @@ const Auth: React.FC = () => {
     return re.test(String(email).toLowerCase());
   };
 
-  const handleAdminSelectionClick = () => {
-      const cleanEmail = email.trim().toLowerCase();
-      if (isMasterAdminAccount(cleanEmail, name)) {
-          setUserRole('Administrador');
-          setNotification({ message: "Acesso de Administrador Master liberado para sua conta.", type: 'success' });
-          return;
-      }
-      if (userRole !== 'Administrador') {
-          setAdminCodeInput("");
-          setShowAdminCodeModal(true);
-      }
-  };
-
-  const confirmAdminCode = () => {
-      if (adminCodeInput.trim() === '7511' || adminCodeInput.trim() === '1234') {
-          setUserRole('Administrador');
-          setNotification({ message: "Acesso de Administrador liberado com paridade total ao Master.", type: 'success' });
-          setShowAdminCodeModal(false);
-      } else {
-          setNotification({ message: "Código inválido. Digite 7511 para acesso administrativo.", type: 'error' });
-          setUserRole('Cliente');
-          setShowAdminCodeModal(false);
-      }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -96,69 +59,15 @@ const Auth: React.FC = () => {
         return;
     }
 
-    if (!isConfigValid()) {
-        // Sem Supabase: a credencial é validada SEMPRE no servidor (sessão por cookie HttpOnly).
-        setIsLoading(true);
-        try {
-            const result = isLogin
-                ? await login(email, password)
-                : await register(email, password, name);
-            setNotification(result.ok
-                ? { message: `${isLogin ? 'Login' : 'Cadastro'} realizado com sucesso!`, type: 'success' }
-                : { message: result.message, type: 'error' });
-        } finally {
-            setIsLoading(false);
-        }
-        return;
-    }
-
     setIsLoading(true);
     try {
-      if (isLogin) {
-        // Supabase Login
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (error) throw error;
-        setNotification({ message: "Login realizado com sucesso!", type: 'success' });
-      } else {
-        // Supabase Register
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              full_name: name.trim(),
-            }
-          }
-        });
-        
-        if (authError) throw authError;
-        if (!authData.user) throw new Error("Erro ao criar usuário.");
-
-        // Create profile in 'users' table
-        const { error: profileError } = await supabase
-          .from('users')
-          .insert([{
-            id: authData.user.id,
-            name: name.trim(),
-            email: email.trim().toLowerCase(),
-            role: userRole,
-            plan: userRole === 'Administrador' ? "Premium" : "Free",
-            status: "Ativo",
-            last_login: new Date().toISOString(),
-            avatar: avatarPreview,
-            credits: userRole === 'Administrador' ? 999999 : 3
-          }]);
-
-        if (profileError) throw profileError;
-
-        setNotification({ message: "Cadastro realizado com sucesso!", type: 'success' });
-      }
-    } catch (error: any) {
-      console.error("Erro na autenticação:", error);
-      setNotification({ message: error.message || "Erro ao processar autenticação.", type: 'error' });
+      // A credencial é validada SEMPRE no servidor (sessão por cookie HttpOnly).
+      const result = isLogin
+        ? await login(email, password)
+        : await register(email, password, name);
+      setNotification(result.ok
+        ? { message: `${isLogin ? 'Login' : 'Cadastro'} realizado com sucesso!`, type: 'success' }
+        : { message: result.message, type: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -182,53 +91,6 @@ const Auth: React.FC = () => {
                 <p className="font-bold text-sm">Autenticação</p>
                 <p className="text-xs opacity-90">{notification.message}</p>
             </div>
-        </div>
-      )}
-
-      {/* Modal de Validação de Administrador (Moldura 1x3 - Código de Acesso) */}
-      {showAdminCodeModal && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-           <div className="bg-forest-surface border-2 border-primary rounded-2xl w-full max-w-sm p-8 shadow-[0_0_40px_rgba(217,119,6,0.2)] text-center relative overflow-hidden">
-                {/* Efeito de fundo */}
-                <div className="absolute inset-0 bg-primary/5"></div>
-                
-                <div className="relative z-10">
-                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4 border border-primary/30">
-                        <span className="material-symbols-outlined text-3xl text-primary">admin_panel_settings</span>
-                    </div>
-                    
-                    <h3 className="text-xl font-display font-bold text-white mb-2">Acesso Restrito</h3>
-                    <p className="text-sm text-stone-400 mb-3">Digite o código de segurança para criar uma conta de Administrador.</p>
-                    <p className="text-[11px] text-amber-400 bg-amber-500/10 py-1.5 px-3 rounded-lg border border-amber-500/20 mb-4 font-mono font-bold">
-                        Código de liberação administrativa: 7511
-                    </p>
-                    
-                    <input 
-                        type="password" 
-                        maxLength={4}
-                        placeholder="Código (4 dígitos)"
-                        value={adminCodeInput}
-                        onChange={(e) => setAdminCodeInput(e.target.value)}
-                        className="w-full bg-forest-deep border border-forest-border rounded-xl px-4 py-3 text-center text-xl tracking-[0.5em] font-bold text-white focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 mb-6 placeholder:tracking-normal placeholder:text-sm placeholder:font-normal"
-                        autoFocus
-                    />
-                    
-                    <div className="flex gap-3">
-                        <button 
-                            onClick={() => { setShowAdminCodeModal(false); setAdminCodeInput(""); }}
-                            className="flex-1 py-3 rounded-xl border border-forest-border text-stone-400 font-bold hover:bg-white/5 transition-colors uppercase text-xs"
-                        >
-                            Cancelar
-                        </button>
-                        <button 
-                            onClick={confirmAdminCode}
-                            className="flex-1 py-3 rounded-xl bg-primary text-white font-bold hover:bg-secondary transition-colors uppercase text-xs shadow-lg shadow-primary/20"
-                        >
-                            Verificar
-                        </button>
-                    </div>
-                </div>
-           </div>
         </div>
       )}
 
@@ -285,35 +147,6 @@ const Auth: React.FC = () => {
 
             <form className="space-y-5" onSubmit={handleSubmit}>
                 
-                {/* SELETOR DE TIPO DE CONTA (Apenas Cadastro) */}
-                {!isLogin && (
-                    <div className="space-y-2 animate-in fade-in duration-300">
-                         <label className="text-xs font-bold text-stone-400 uppercase">Tipo de Conta</label>
-                         <div className="flex bg-forest-deep rounded-lg p-1 border border-forest-border">
-                            <button
-                                type="button"
-                                onClick={() => setUserRole('Cliente')}
-                                className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${userRole === 'Cliente' ? 'bg-primary text-white shadow-lg' : 'text-stone-500 hover:text-stone-300'}`}
-                            >
-                                Cliente
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleAdminSelectionClick}
-                                className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${userRole === 'Administrador' ? 'bg-primary text-white shadow-lg' : 'text-stone-500 hover:text-stone-300'}`}
-                            >
-                                Administrador
-                            </button>
-                         </div>
-                         {/* Indicador visual de seleção segura */}
-                         {userRole === 'Administrador' && (
-                            <p className="text-[10px] text-primary flex items-center justify-center gap-1 animate-in fade-in">
-                                <span className="material-symbols-outlined text-[12px]">lock</span> Acesso Administrativo Autorizado
-                            </p>
-                         )}
-                    </div>
-                )}
-
                 {/* FOTO DO PERFIL - Exibida em Login e Cadastro (Moldura 3x4) */}
                 <div className="flex flex-col items-center justify-center pt-1 animate-in fade-in duration-300">
                     <label className="relative w-28 h-36 bg-[#020617] border-2 border-dotted border-[#334155] rounded-2xl flex items-center justify-center cursor-pointer overflow-hidden hover:border-amber-500 hover:bg-[#1e293b]/30 transition-all group shadow-inner">
@@ -397,39 +230,6 @@ const Auth: React.FC = () => {
                         </>
                     )}
                 </button>
-
-                {/* Atalho Especial: Administradores Master */}
-                <div className="pt-3 border-t border-forest-border/40 space-y-2">
-                    <button
-                        type="button"
-                        onClick={() => {
-                            setIsLogin(true);
-                            setEmail(CLAUDIO_ADMIN_EMAIL);
-                            setNotification({ message: 'Informe a senha desta conta para entrar.', type: 'error' });
-                        }}
-                        disabled={isLoading}
-                        className="w-full bg-[#1e293b]/50 hover:bg-[#1e293b] border border-amber-500/40 hover:border-amber-500 text-stone-200 hover:text-white font-semibold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-sm group"
-                        title="Entrar diretamente como o Administrador Master Claudio Xavier"
-                    >
-                        <span className="material-symbols-outlined text-amber-500 text-[18px]">verified_user</span>
-                        <span>Entrar como: <strong className="text-amber-500 font-bold">{CLAUDIO_ADMIN_NAME}</strong> ({CLAUDIO_ADMIN_EMAIL})</span>
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={() => {
-                            setIsLogin(true);
-                            setEmail(ADMIN_MASTER_EMAIL);
-                            setNotification({ message: 'Informe a senha desta conta para entrar.', type: 'error' });
-                        }}
-                        disabled={isLoading}
-                        className="w-full bg-[#1e293b]/30 hover:bg-[#1e293b]/60 border border-white/10 hover:border-white/20 text-stone-300 hover:text-white font-medium py-2 px-4 rounded-xl text-[11px] flex items-center justify-center gap-2 transition-all"
-                        title="Entrar como: administrar do aplicativo CVFacil.NG"
-                    >
-                        <span className="material-symbols-outlined text-stone-400 text-[16px]">admin_panel_settings</span>
-                        <span>Entrar como: <strong className="text-stone-300">administrar do aplicativo CVFacil.NG</strong></span>
-                    </button>
-                </div>
             </form>
 
             <div className="mt-8 text-center">

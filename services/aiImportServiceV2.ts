@@ -1,3 +1,4 @@
+import { SESSION_EXPIRED_MESSAGE } from './authClient';
 import { ResumeData } from '../types';
 import { ResumeImportInspectorAgent } from './aiImportInspectorAgent';
 
@@ -60,6 +61,7 @@ export async function importResumeFromPdfV2(
 
   const response = await fetch('/api/gemini/import-pdf-v2', {
     method: 'POST',
+    credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       pdfBase64,
@@ -67,6 +69,7 @@ export async function importResumeFromPdfV2(
     })
   });
 
+  if (response.status === 401) throw new Error(SESSION_EXPIRED_MESSAGE);
   if (!response.ok) {
     const errorJson = await response.json().catch(() => ({}));
     let msg = errorJson.error || errorJson.details || `Erro HTTP ${response.status} ao processar PDF.`;
@@ -98,16 +101,6 @@ export async function importResumeFromPdfV2(
     lastUpdated: new Date().toLocaleDateString('pt-BR'),
     isImported: true
   };
-
-  // Sincroniza imediatamente em localStorage para disponibilidade em tempo real no Editor
-  try {
-    localStorage.setItem('cvfacil_current_editing_resume', JSON.stringify(newResume));
-    const local = localStorage.getItem('cvfacil_local_resumes');
-    const list: ResumeData[] = local ? JSON.parse(local) : [];
-    localStorage.setItem('cvfacil_local_resumes', JSON.stringify([newResume, ...list.filter(r => r.id !== newResume.id)]));
-  } catch (e) {
-    console.warn("Storage sync aviso:", e);
-  }
 
   if (onStatusUpdate) onStatusUpdate("Currículo gerado com sucesso!", 100);
   return newResume;

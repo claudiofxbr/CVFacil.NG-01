@@ -34,7 +34,7 @@ describe('Resilience and Fallback Suite - PDF Import V2 & V1', () => {
     const candidateModels = ["gemini-3.8-flash", "gemini-2.5-flash"];
     let response: any = null;
 
-    for (const model of candidateModels) {
+    for (const _model of candidateModels) {
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
           response = await mockGenerate();

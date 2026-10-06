@@ -1,12 +1,15 @@
 import { sql } from '../../../../lib/neon';
 import { NextResponse } from 'next/server';
+import { adminGuard } from '../../../../lib/apiAuth';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * Migration inicial e DDL da base CVfacil.NG-01 no Neon
  */
-export async function POST() {
+export async function POST(req: Request) {
+  const guard = await adminGuard(req);
+  if (guard instanceof NextResponse) return guard;
   try {
     // 1. Criar extensão para UUID
     await sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`;
@@ -95,24 +98,18 @@ export async function POST() {
     });
   } catch (error: any) {
     console.error("Erro na inicialização do schema no Neon:", error);
-    return NextResponse.json(
-      { error: "Erro ao criar schema no Neon", details: error.message || String(error) },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Erro ao criar schema no Neon." }, { status: 500 });
   }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const guard = await adminGuard(req);
+  if (guard instanceof NextResponse) return guard;
   try {
-    const usersCount = await sql`SELECT count(*) as total FROM users;`;
-    const resumesCount = await sql`SELECT count(*) as total FROM resumes;`;
-    return NextResponse.json({
-      connected: true,
-      database: "neondb (CVfacil.NG-01)",
-      users: usersCount[0]?.total || 0,
-      resumes: resumesCount[0]?.total || 0
-    });
+    await sql`SELECT 1;`;
+    return NextResponse.json({ connected: true });
   } catch (error: any) {
-    return NextResponse.json({ connected: false, error: error.message }, { status: 500 });
+    console.error("Erro ao verificar conexão com o Neon:", error);
+    return NextResponse.json({ connected: false }, { status: 500 });
   }
 }

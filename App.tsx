@@ -7,13 +7,12 @@ import Pricing from './components/Pricing';
 import Settings from './components/Settings';
 import { ViewState, User } from './types';
 import { AuthProvider, useAuth } from './components/AuthProvider';
-import { supabase } from './supabase';
 
 // Default user image if none uploaded
 const DEFAULT_AVATAR = "https://api.dicebear.com/7.x/initials/svg?seed=CV";
 
 const AppContent: React.FC = () => {
-  const { profile, loading, isConfigured, logoutLocal } = useAuth();
+  const { profile, loading, logout } = useAuth();
   const [view, setView] = useState<ViewState>(ViewState.AUTH);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('original');
   const [editingResumeId, setEditingResumeId] = useState<string | null>(null);
@@ -36,10 +35,9 @@ const AppContent: React.FC = () => {
   }, [profile, loading]);
 
   const handleLogout = async () => {
-    if (!isConfigured) {
-      logoutLocal();
-    } else {
-      await supabase.auth.signOut();
+    const revoked = await logout();
+    if (!revoked) {
+      window.alert('Não foi possível encerrar a sessão no servidor (sem conexão). Você saiu deste navegador, mas a sessão só expira em até 7 dias. Saia novamente quando estiver online.');
     }
     setUserInfo({ name: "Visitante", avatar: DEFAULT_AVATAR, email: "" });
     setView(ViewState.AUTH);

@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import { ResumeImportInspectorAgent } from '../../services/aiImportInspectorAgent';
 import { ResumeImportAnalysisAgent } from '../../services/aiImportAnalysisAgent';
 import { ResumeImportResolutionAgent } from '../../services/aiImportResolutionAgent';
 import { ResumeImportProcessManagerAgent } from '../../services/aiImportProcessManagerAgent';

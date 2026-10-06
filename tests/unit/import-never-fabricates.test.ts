@@ -12,6 +12,12 @@ import { join } from 'node:path';
  */
 let generate: (args: any) => any;
 
+// As rotas de IA agora exigem sessão (coberta em protected-routes.test.ts); aqui a sessão é simulada.
+vi.mock('../../lib/requireUser', async (orig) => ({
+  ...(await orig<any>()),
+  requireUser: async () => ({ id: 'user-teste', email: 'teste@x.com' }),
+}));
+
 vi.mock('@google/genai', () => ({
   GoogleGenAI: class {
     models = { generateContent: (args: any) => generate(args) };

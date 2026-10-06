@@ -20,7 +20,7 @@ const Dashboard: React.FC<{
   onEdit: (resumeId: string) => void; 
   userInfo: User; 
 }> = ({ onCreate, onEdit, userInfo }) => {
-  const { user, isConfigured } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [resumes, setResumes] = useState<ResumeData[]>([]);
   const [trashResumes, setTrashResumes] = useState<ResumeData[]>([]);
@@ -52,7 +52,6 @@ const Dashboard: React.FC<{
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fileInputV2Ref = useRef<HTMLInputElement>(null);
 
-  const isAdmin = userInfo.role === 'Administrador' || (user as any)?.role === 'admin';
   const isFreePlan = (userInfo.plan || 'Free') === 'Free';
   const maxActiveAllowed = 3;
 
@@ -79,7 +78,7 @@ const Dashboard: React.FC<{
 
   useEffect(() => {
     loadAllResumes();
-  }, [user, isConfigured]);
+  }, [user]);
 
   // Timer para limpar notificação automaticamente
   useEffect(() => {

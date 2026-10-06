@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ versions });
   } catch (error: any) {
     console.error("Erro ao listar versões no Neon:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Erro interno ao processar a solicitação.' }, { status: 500 });
   }
 }
 
@@ -111,6 +111,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, restoredResume: resumeData, newVersionNumber: nextVer });
   } catch (error: any) {
     console.error("Erro ao restaurar versão:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Erro interno ao processar a solicitação.' }, { status: 500 });
   }
 }

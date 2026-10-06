@@ -11,6 +11,10 @@ import { join } from 'node:path';
  *
  * Alterar o layout de login exige autorização do dono do projeto E a atualização
  * deliberada deste arquivo no mesmo commit — nunca "consertar o teste" por conta própria.
+ *
+ * Exceção autorizada pelo dono (etapa 4, "remover tudo"): foram retirados os atalhos "Entrar como: …"
+ * (login sem senha como administrador) e o seletor de tipo de conta; por isso saíram os marcadores
+ * 'Entrar como:' e 'administrar do aplicativo CVFacil.NG'. Todo o resto do layout permanece travado.
  */
 const root = join(__dirname, '..', '..');
 const auth = readFileSync(join(root, 'components', 'Auth.tsx'), 'utf8');
@@ -25,8 +29,6 @@ const MARCADORES_FOTO01 = [
   '3X4',
   'FOTO DO PERFIL (3X4)',
   'NOME COMPLETO',
-  'Entrar como:',
-  'administrar do aplicativo CVFacil.NG',
 ];
 
 describe('layout de login (foto01.png) travado', () => {

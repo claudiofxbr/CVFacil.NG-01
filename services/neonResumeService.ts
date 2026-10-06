@@ -47,17 +47,6 @@ export const neonResumeService = {
     resume: ResumeData, 
     options?: { consumeCredit?: boolean; changeSummary?: string }
   ): Promise<{ success: boolean; isUpdate?: boolean; creditConsumed?: boolean; error?: string }> {
-    // Sincroniza imediatamente no armazenamento local para zero-latency
-    try {
-      const local = localStorage.getItem('cvfacil_local_resumes');
-      const list: ResumeData[] = local ? JSON.parse(local) : [];
-      const updated = [resume, ...list.filter(r => r.id !== resume.id)];
-      localStorage.setItem('cvfacil_local_resumes', JSON.stringify(updated));
-      localStorage.setItem('cvfacil_current_editing_resume', JSON.stringify(resume));
-    } catch (e) {
-      console.warn("Aviso ao sincronizar storage local:", e);
-    }
-
     try {
       const payload = {
         ...resume,
@@ -95,13 +84,6 @@ export const neonResumeService = {
         throw new Error(err.error || `Erro ${res.status} ao mover para a lixeira.`);
       }
 
-      // Atualiza localmente
-      const local = localStorage.getItem('cvfacil_local_resumes');
-      if (local) {
-        const list: ResumeData[] = JSON.parse(local);
-        const updated = list.map(r => r.id === id ? { ...r, deletedAt: new Date().toISOString() } : r);
-        localStorage.setItem('cvfacil_local_resumes', JSON.stringify(updated));
-      }
       return true;
     } catch (error) {
       console.error("Erro no neonResumeService.moveToTrash:", error);
@@ -125,13 +107,6 @@ export const neonResumeService = {
         throw new Error(err.error || `Erro ${res.status} ao restaurar currículo.`);
       }
 
-      // Atualiza localmente
-      const local = localStorage.getItem('cvfacil_local_resumes');
-      if (local) {
-        const list: ResumeData[] = JSON.parse(local);
-        const updated = list.map(r => r.id === id ? { ...r, deletedAt: null } : r);
-        localStorage.setItem('cvfacil_local_resumes', JSON.stringify(updated));
-      }
       return true;
     } catch (error) {
       console.error("Erro no neonResumeService.restoreFromTrash:", error);
@@ -151,12 +126,6 @@ export const neonResumeService = {
         throw new Error(err.error || `Erro ${res.status} ao excluir definitivamente.`);
       }
 
-      // Remove localmente
-      const local = localStorage.getItem('cvfacil_local_resumes');
-      if (local) {
-        const list: ResumeData[] = JSON.parse(local);
-        localStorage.setItem('cvfacil_local_resumes', JSON.stringify(list.filter(r => r.id !== id)));
-      }
       return true;
     } catch (error) {
       console.error("Erro no neonResumeService.permanentDelete:", error);

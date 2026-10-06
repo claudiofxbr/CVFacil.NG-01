@@ -10,7 +10,7 @@ vi.mock('../../lib/session', async (orig) => {
   return { ...real, getSessionUser: async () => db.sessionUser };
 });
 
-// Banco falso em memória: interpreta apenas as queries das rotas /api/neon/resumes e /api/auth/claim-legacy.
+// Banco falso em memória: interpreta apenas as queries das rotas /api/neon/resumes .
 vi.mock('../../lib/neon', () => ({
   sql: async (strings: TemplateStringsArray, ...v: any[]) => {
     const t = strings.join('?').replace(/\s+/g, ' ').trim();
@@ -62,23 +62,12 @@ vi.mock('../../lib/neon', () => ({
       return versions.filter((x) => x.id === v[0] && x.resume_id === v[1]);
     }
     if (t.startsWith('UPDATE resumes SET full_name')) { resumes.find((r) => r.id === v[v.length - 1]).data = v[v.length - 2]; return []; }
-    if (t.startsWith('WITH ids AS')) {
-      // Emula a instrução atômica de claim-legacy.
-      const ids: string[] = JSON.parse(v[0]); const legacyDomain = v[1]; const me = v[2]; const claimedDomain = v[5];
-      const eligible = users.filter((u) => ids.includes(u.id) && !u.password_hash && u.email === u.id + legacyDomain && u.id !== me).map((u) => u.id);
-      let rm = 0, vm = 0;
-      resumes.forEach((r) => { if (eligible.includes(r.user_id)) { r.user_id = me; rm++; } });
-      versions.forEach((x) => { if (eligible.includes(x.changed_by)) { x.changed_by = me; vm++; } });
-      users.forEach((u) => { if (eligible.includes(u.id)) u.email = u.id + claimedDomain; });
-      return [{ claimed: eligible.length, resumes_moved: rm, versions_moved: vm }];
-    }
     throw new Error('query inesperada: ' + t);
   },
 }));
 
 import { GET, POST, DELETE, PATCH } from '../../app/api/neon/resumes/route';
 import { GET as vGET, POST as vPOST } from '../../app/api/neon/resumes/versions/route';
-import { POST as claim } from '../../app/api/auth/claim-legacy/route';
 import { POST as register } from '../../app/api/auth/register/route';
 import { __resetRateLimitForTests } from '../../lib/authRateLimit';
 import { NextRequest } from 'next/server';
@@ -111,7 +100,6 @@ describe('/api/neon/resumes exige sessão e ignora userId/role forjados', () => 
       await PATCH(nreq('/api/neon/resumes', { ...body({ id: 'r-b', userId: 'user-b', role: 'admin' }), method: 'PATCH' })),
       await vGET(nreq('/api/neon/resumes/versions?resumeId=r-b')),
       await vPOST(nreq('/api/neon/resumes/versions', body({ resumeId: 'r-b', versionId: 'v-b1' }))),
-      await claim(new Request('http://x/c', body({ legacyIds: ['local-1700000000000'] }))),
     ];
     for (const r of rs) expect(r.status).toBe(401);
     expect(db.resumes).toHaveLength(1);
@@ -202,85 +190,6 @@ describe('/api/neon/resumes exige sessão e ignora userId/role forjados', () => 
     expect(noCredit.status).toBe(402);
     expect((await noCredit.json()).code).toBe('INSUFFICIENT_CREDITS');
     expect(db.users[0].credits).toBe(2); // 3 criações debitaram só A
-  });
-});
-
-describe('/api/auth/claim-legacy', () => {
-  const LEG = 'local-1700000000001';
-  const seedLegacy = (id = LEG, over: any = {}) => {
-    db.users.push({ id, email: `${id}@cvfacil.local`, password_hash: null, plan: 'free', credits: 5, ...over });
-    db.resumes.push({ id: 'r-' + id, user_id: id, data: '{}', deleted_at: null });
-    db.versions.push({ id: 'v-' + id, resume_id: 'r-' + id, changed_by: id, data: '{}', version_number: 1 });
-  };
-  const call = (ids: unknown) => claim(new Request('http://x/api/auth/claim-legacy', body({ legacyIds: ids })));
-
-  it('migra currículos e versões de id local elegível para a sessão', async () => {
-    seedLegacy();
-    as(A);
-    const res = await call([LEG]);
-    expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ claimed: 1, resumesMoved: 1, versionsMoved: 1 });
-    expect(db.resumes.find((r) => r.id === 'r-' + LEG).user_id).toBe('user-a');
-    expect(db.versions.find((x) => x.id === 'v-' + LEG).changed_by).toBe('user-a');
-    expect(db.resumes.find((r) => r.id === 'r-b').user_id).toBe('user-b');
-  });
-
-  it('não reivindica duas vezes (nem por outro usuário)', async () => {
-    seedLegacy();
-    as(A);
-    expect((await (await call([LEG])).json()).claimed).toBe(1);
-    as(B);
-    const second = await (await call([LEG])).json();
-    expect(second.claimed).toBe(0);
-    expect(db.resumes.find((r) => r.id === 'r-' + LEG).user_id).toBe('user-a');
-  });
-
-  it('recusa id com senha, id com e-mail real, admin-*, UUID e formato inválido', async () => {
-    seedLegacy('local-1700000000002', { password_hash: 'scrypt$x' });
-    seedLegacy('local-1700000000003', { email: 'outra@pessoa.com' });
-    db.users.push({ id: 'admin-claudio', email: 'admin-claudio@cvfacil.local', password_hash: null });
-    db.resumes.push({ id: 'r-adm', user_id: 'admin-claudio', data: '{}', deleted_at: null });
-    as(A);
-    const res = await (await call(['local-1700000000002', 'local-1700000000003', 'admin-claudio', 'admin-master', 'user-b', "x'; DROP TABLE users;--", 42])).json();
-    expect(res.claimed).toBe(0);
-    expect(res.resumesMoved).toBe(0);
-    expect(db.resumes.filter((r) => r.user_id === 'user-a')).toHaveLength(0);
-    expect(db.resumes.find((r) => r.id === 'r-adm').user_id).toBe('admin-claudio');
-  });
-
-  it('só ids de formato inválido nem chegam ao banco', async () => {
-    as(A);
-    const res = await (await call(['admin-claudio', 'user-b', "x'; DROP TABLE users;--"])).json();
-    expect(res).toMatchObject({ claimed: 0, rejected: 3 });
-    expect(db.log.some((q) => q.startsWith('WITH ids'))).toBe(false);
-  });
-
-  it('mistura: migra só os elegíveis', async () => {
-    seedLegacy('local-1700000000004');
-    seedLegacy('local-1700000000005', { password_hash: 'scrypt$x' });
-    as(A);
-    const res = await (await call(['local-1700000000004', 'local-1700000000005', 'admin-master'])).json();
-    expect(res).toMatchObject({ claimed: 1, resumesMoved: 1 });
-    expect(db.resumes.find((r) => r.id === 'r-local-1700000000005').user_id).toBe('local-1700000000005');
-  });
-
-  it('valida entrada: lista vazia, não-array e mais de 10 ids -> 400', async () => {
-    as(A);
-    expect((await call([])).status).toBe(400);
-    expect((await call('local-1700000000001')).status).toBe(400);
-    expect((await call(Array.from({ length: 11 }, (_, i) => `local-17000000000${10 + i}`))).status).toBe(400);
-  });
-
-  it('é uma única instrução SQL (atômica) e o log de auditoria não traz e-mail', async () => {
-    seedLegacy();
-    as(A);
-    const spy = vi.spyOn(console, 'info').mockImplementation(() => {});
-    await call([LEG]);
-    expect(db.log.filter((q) => q.startsWith('WITH ids'))).toHaveLength(1);
-    const logged = String(spy.mock.calls[0]?.[1] ?? '');
-    expect(logged).toContain('"claimed":1');
-    expect(logged).not.toContain('@');
-    spy.mockRestore();
   });
 });
 

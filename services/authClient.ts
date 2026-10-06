@@ -8,6 +8,8 @@ export interface SessionIdentity {
   isAdmin: boolean;
 }
 
+export const SESSION_EXPIRED_MESSAGE = 'Sua sessão expirou. Entre novamente para continuar.';
+
 export type AuthResult = { ok: true } | { ok: false; message: string };
 
 const MESSAGES: Record<number, string> = {
@@ -54,8 +56,10 @@ export async function serverRegister(email: string, password: string, name: stri
   return { ok: false, message: messageForRegisterError(res.status, await errorCode(res)) };
 }
 
-export async function serverLogout(): Promise<void> {
-  await post('/api/auth/logout');
+/** true = sessão revogada no servidor; false = falha (rede/5xx), o cookie pode continuar válido. */
+export async function serverLogout(): Promise<boolean> {
+  const res = await post('/api/auth/logout');
+  return !!res && res.ok;
 }
 
 /** Converte a resposta de /api/auth/me no formato que o app já consome (papel vem do servidor). */
@@ -92,58 +96,4 @@ export async function fetchSession(): Promise<SessionIdentity | null> {
   } catch {
     return null;
   }
-}
-
-// ---- Migração de currículos legados (ids locais anteriores à sessão de servidor) ----
-const LEGACY_ID_RE = /^local-\d{10,16}$/;
-const PENDING_KEY = 'cvfacil_legacy_pending';
-const DONE_KEY = 'cvfacil_legacy_done';
-const MAX_LEGACY_IDS = 10;
-
-const readList = (key: string): string[] => {
-  try {
-    const v = JSON.parse(localStorage.getItem(key) || '[]');
-    return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : [];
-  } catch { return []; }
-};
-const writeList = (key: string, list: string[]) => {
-  try { localStorage.setItem(key, JSON.stringify(list)); } catch { /* storage indisponível */ }
-};
-
-/**
- * Lê os ids locais antigos (identidade local + userId dos currículos em cache) e os guarda como
- * pendentes ANTES de a identidade local ser apagada. Só aceita o formato local-<timestamp>
- * (admin-* e demais ficam de fora; o servidor revalida).
- */
-export function captureLegacyIds(): string[] {
-  const found = new Set<string>(readList(PENDING_KEY));
-  try {
-    const u = JSON.parse(localStorage.getItem('cvfacil_local_user') || 'null');
-    if (u && typeof u.id === 'string') found.add(u.id);
-  } catch { /* ignora JSON inválido */ }
-  try {
-    const list = JSON.parse(localStorage.getItem('cvfacil_local_resumes') || '[]');
-    if (Array.isArray(list)) for (const r of list) if (r && typeof r.userId === 'string') found.add(r.userId);
-  } catch { /* ignora JSON inválido */ }
-  const done = new Set(readList(DONE_KEY));
-  const pending = [...found].filter((id) => LEGACY_ID_RE.test(id) && !done.has(id)).slice(0, MAX_LEGACY_IDS);
-  writeList(PENDING_KEY, pending);
-  return pending;
-}
-
-/** Chama POST /api/auth/claim-legacy uma vez com os ids pendentes; em sucesso marca como feitos e limpa. */
-export async function claimPendingLegacy(): Promise<void> {
-  const pending = captureLegacyIds();
-  if (pending.length === 0) return;
-  try {
-    const res = await fetch('/api/auth/claim-legacy', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ legacyIds: pending }),
-    });
-    if (!res.ok) return; // mantém pendente para a próxima sessão
-    writeList(DONE_KEY, [...new Set([...readList(DONE_KEY), ...pending])]);
-    writeList(PENDING_KEY, []);
-  } catch { /* tenta de novo depois */ }
 }

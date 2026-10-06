@@ -1,3 +1,4 @@
+import { SESSION_EXPIRED_MESSAGE } from './authClient';
 import { GoogleGenAI, Type } from "@google/genai";
 import { ResumeData } from "../types";
 import { generateUUID } from "./resumeService";
@@ -95,14 +96,18 @@ export const importResumeFromPdf = async (
   // 3. Tentar chamada via servidor (/api/gemini/import-pdf)
   let rawText = '';
   let serverErrorMessage = '';
+  let unauthorized = false;
   try {
     const apiRes = await fetch('/api/gemini/import-pdf', {
       method: 'POST',
+      credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ base64Data })
     });
     const jsonRes = await apiRes.json().catch(() => null);
-    if (apiRes.ok && jsonRes?.data) {
+    if (apiRes.status === 401) {
+      unauthorized = true;
+    } else if (apiRes.ok && jsonRes?.data) {
       rawText = JSON.stringify(jsonRes.data);
     } else if (jsonRes?.error) {
       serverErrorMessage = jsonRes.error;
@@ -110,6 +115,7 @@ export const importResumeFromPdf = async (
   } catch (err) {
     console.warn("Rota /api/gemini/import-pdf falhou:", err);
   }
+  if (unauthorized) throw new Error(SESSION_EXPIRED_MESSAGE);
 
   if (!rawText) {
     // Fallback Client-side Gemini Call

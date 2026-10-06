@@ -153,7 +153,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ resumes });
   } catch (error: any) {
     console.error("Erro ao listar currículos no Neon:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Erro interno ao processar a solicitação.' }, { status: 500 });
   }
 }
 
@@ -301,7 +301,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     console.error("Erro ao persistir currículo no Neon:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Erro interno ao processar a solicitação.' }, { status: 500 });
   }
 }
 
@@ -333,7 +333,7 @@ export async function DELETE(req: NextRequest) {
     }
   } catch (error: any) {
     console.error("Erro na exclusão do currículo no Neon:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Erro interno ao processar a solicitação.' }, { status: 500 });
   }
 }
 
@@ -359,6 +359,6 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ success: true, restoredId: id });
   } catch (error: any) {
     console.error("Erro ao restaurar currículo da lixeira no Neon:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Erro interno ao processar a solicitação.' }, { status: 500 });
   }
 }

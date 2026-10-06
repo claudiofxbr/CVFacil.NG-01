@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { ResumeData, ResumeVersion } from '../../types';
 import { ResumeImportPreviewAnalysisAgent } from '../../services/aiPreviewAnalysisAgent';
-import { ResumeDeployAndVerificationAgent } from '../../services/aiDeployAndVerificationAgent';
 import { MasterProcessOrchestratorAgent } from '../../services/aiProcessOrchestratorAgent';
 
 describe('CRUD Lifecycle V2 & Neon Persistence Suite', () => {

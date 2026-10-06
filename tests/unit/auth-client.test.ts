@@ -85,50 +85,16 @@ describe('fontes: não há mais entrada sem credencial no servidor', () => {
   const auth = readFileSync(join(root, 'components', 'Auth.tsx'), 'utf8');
   const provider = readFileSync(join(root, 'components', 'AuthProvider.tsx'), 'utf8');
 
-  it('nenhum loginLocal e nenhuma leitura de identidade do localStorage', () => {
+  it('nenhum loginLocal e nenhuma leitura/gravação de identidade no localStorage', () => {
     expect(auth).not.toContain('loginLocal');
     expect(provider).not.toContain('loginLocal');
-    expect(provider).not.toMatch(/localStorage\.getItem\(/);
-    expect(provider).not.toMatch(/localStorage\.setItem\(/);
+    expect(provider).not.toMatch(/localStorage/);
+    expect(auth).not.toMatch(/localStorage/);
   });
 
   it('Auth usa login/register do servidor', () => {
     expect(auth).toMatch(/await login\(email, password\)/);
     expect(auth).toMatch(/await register\(email, password, name\)/);
-  });
-});
-
-describe('captura/claim de ids legados (localStorage simulado)', () => {
-  const store = new Map<string, string>();
-  const ls = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) };
-  afterEach(() => { store.clear(); vi.unstubAllGlobals(); });
-
-  it('captura só local-<timestamp> (ignora admin-*, UUID, visitante) e chama a rota uma vez', async () => {
-    const { captureLegacyIds, claimPendingLegacy } = await import('../../services/authClient');
-    vi.stubGlobal('localStorage', ls);
-    store.set('cvfacil_local_user', JSON.stringify({ id: 'local-1700000000001' }));
-    store.set('cvfacil_local_resumes', JSON.stringify([{ userId: 'local-1700000000002' }, { userId: 'admin-claudio' }, { userId: 'visitante' }, { userId: 'local-1700000000001' }, { userId: 'abc-uuid' }]));
-    expect(captureLegacyIds().sort()).toEqual(['local-1700000000001', 'local-1700000000002']);
-
-    const f = vi.fn().mockResolvedValue(json(200, { claimed: 2 }));
-    vi.stubGlobal('fetch', f);
-    await claimPendingLegacy();
-    expect(f).toHaveBeenCalledTimes(1);
-    expect(f.mock.calls[0][0]).toBe('/api/auth/claim-legacy');
-    expect(f.mock.calls[0][1].credentials).toBe('same-origin');
-    expect(JSON.parse(f.mock.calls[0][1].body).legacyIds.sort()).toEqual(['local-1700000000001', 'local-1700000000002']);
-    // depois do sucesso não chama de novo
-    await claimPendingLegacy();
-    expect(f).toHaveBeenCalledTimes(1);
-  });
-
-  it('falha do servidor mantém ids pendentes para a próxima sessão', async () => {
-    const { claimPendingLegacy, captureLegacyIds } = await import('../../services/authClient');
-    vi.stubGlobal('localStorage', ls);
-    store.set('cvfacil_local_user', JSON.stringify({ id: 'local-1700000000009' }));
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(503, {})));
-    await claimPendingLegacy();
-    expect(captureLegacyIds()).toEqual(['local-1700000000009']);
   });
 });
 

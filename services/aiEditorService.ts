@@ -1,3 +1,4 @@
+import { SESSION_EXPIRED_MESSAGE } from './authClient';
 import { GoogleGenAI } from "@google/genai";
 
 /**
@@ -9,19 +10,23 @@ export const improveTextWithAI = async (text: string, context: string): Promise<
   }
 
   // 1. Tentar via servidor (/api/gemini/editor)
+  let unauthorized = false;
   try {
     const res = await fetch('/api/gemini/editor', {
       method: 'POST',
+      credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'improve', text, context })
     });
-    if (res.ok) {
+    if (res.status === 401) unauthorized = true;
+    else if (res.ok) {
       const data = await res.json();
       if (data.result) return data.result;
     }
   } catch (e) {
     console.warn("Rota /api/gemini/editor indisponível, fallback client-side:", e);
   }
+  if (unauthorized) throw new Error(SESSION_EXPIRED_MESSAGE);
 
   // Fallback Client-Side
   const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
@@ -68,19 +73,23 @@ export const suggestSkillsWithAI = async (experiences: any[]): Promise<string[]>
     }
 
     // 1. Tentar via servidor (/api/gemini/editor)
+    let unauthorized = false;
     try {
       const res = await fetch('/api/gemini/editor', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'suggest-skills', experiences })
       });
-      if (res.ok) {
+      if (res.status === 401) unauthorized = true;
+      else if (res.ok) {
         const data = await res.json();
         if (data.skills) return data.skills;
       }
     } catch (e) {
       console.warn("Rota /api/gemini/editor indisponível, fallback client-side:", e);
     }
+    if (unauthorized) throw new Error(SESSION_EXPIRED_MESSAGE);
 
     // Fallback Client-Side
     const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
