@@ -30,8 +30,6 @@ jobs:
       - name: Compilar Projeto (Next.js Build)
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
         run: npm run build
 
   deploy-vps:
@@ -45,6 +43,7 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ADMIN_EMAILS: ${{ secrets.ADMIN_EMAILS }}
         run: |
           if [ -n "$DATABASE_URL" ]; then
             B64=$(printf '%s' "$DATABASE_URL" | base64 -w0)
@@ -56,11 +55,16 @@ jobs:
             echo "::add-mask::$B64"
             echo "GEMINI_B64=$B64" >> "$GITHUB_ENV"
           fi
+          if [ -n "$ADMIN_EMAILS" ]; then
+            B64=$(printf '%s' "$ADMIN_EMAILS" | base64 -w0)
+            echo "::add-mask::$B64"
+            echo "ADMIN_B64=$B64" >> "$GITHUB_ENV"
+          fi
 
       - name: Executar Deploy via SSH na VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
-          envs: DB_B64,GEMINI_B64
+          envs: DB_B64,GEMINI_B64,ADMIN_B64
           host: ${{ secrets.VPS_HOST || '69.62.87.38' }}
           username: ${{ secrets.VPS_USER || 'root' }}
           key: ${{ secrets.VPS_SSH_KEY }}
@@ -125,6 +129,15 @@ jobs:
                 mv .env.tmp .env )
               unset NOVO
               echo "GEMINI_API_KEY do GitHub Secret aplicada ao .env"
+            fi
+            if [ -n "$ADMIN_B64" ]; then
+              NOVO=$(printf '%s' "$ADMIN_B64" | base64 -d)
+              ( umask 077
+                grep -v '^ADMIN_EMAILS=' .env > .env.tmp 2>/dev/null || true
+                printf 'ADMIN_EMAILS=%s\n' "$NOVO" >> .env.tmp
+                mv .env.tmp .env )
+              unset NOVO
+              echo "ADMIN_EMAILS do GitHub Secret aplicada ao .env"
             fi
 
             # 3. Instalação de dependências e Build de Produção
