@@ -1,1 +1,8 @@
-/* Global styles */
+/* A fonte de icones vem ANTES do Tailwind: a regra .material-symbols-outlined (font-size 24px) do Google
+   precisa perder para os utilitarios (text-xl, text-[18px]...), como acontecia com o CDN, que injetava
+   o CSS no fim do head. */
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

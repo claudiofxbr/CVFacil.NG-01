@@ -20,36 +20,8 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet" />
         
-        {/* Material Symbols */}
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+        {/* Material Symbols: importada em globals.css, antes do Tailwind (ordem de cascata) */}
 
-        {/* Tailwind CSS */}
-        <script src="https://cdn.tailwindcss.com"></script>
-        <script dangerouslySetInnerHTML={{
-          __html: `
-            tailwind.config = {
-              darkMode: 'class',
-              theme: {
-                extend: {
-                  fontFamily: {
-                    sans: ['Inter', 'sans-serif'],
-                    display: ['Outfit', 'sans-serif'],
-                  },
-                  colors: {
-                    primary: "#d97706", 
-                    secondary: "#c2410c", 
-                    "forest-deep": "#020617", 
-                    "forest-base": "#0f172a", 
-                    "forest-surface": "#1e293b", 
-                    "forest-border": "#334155", 
-                    "stone-200": "#e2e8f0", 
-                    "stone-400": "#94a3b8", 
-                  }
-                }
-              }
-            }
-          `
-        }} />
         <style dangerouslySetInnerHTML={{
           __html: `
             /* Custom scrollbar */

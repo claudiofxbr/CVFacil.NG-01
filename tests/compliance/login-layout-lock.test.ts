@@ -16,6 +16,10 @@ import { join } from 'node:path';
  * (login sem senha como administrador) e o seletor de tipo de conta; por isso saíram os marcadores
  * 'Entrar como:' e 'administrar do aplicativo CVFacil.NG'. Todo o resto do layout permanece travado.
  *
+ * Exceção autorizada pelo dono (Tailwind): o CDN em tempo de execução foi trocado por Tailwind v3
+ * compilado com o MESMO tema; equivalência provada comparando as 766 regras CSS geradas pelo CDN
+ * com as do build (idênticas, salvo um prefixo -webkit- obsoleto removido pelo autoprefixer).
+ *
  * Exceção autorizada pelo dono (P5): o indicador de conexão trocou de 'MODO LOCAL (OFFLINE)' para
  * 'CONECTADO AO SERVIDOR' (o login agora é validado no servidor); mesmo elemento e mesmo estilo.
  */
@@ -46,7 +50,14 @@ describe('layout de login (foto01.png) travado', () => {
     expect(auth).toMatch(/Entrar/);
   });
 
-  it('mantém o Tailwind via CDN que define a aparência atual (removê-lo muda o layout)', () => {
-    expect(layout).toContain('https://cdn.tailwindcss.com');
+  it('mantém o Tailwind (compilado, mesmo tema do antigo CDN) que define a aparência atual', () => {
+    const config = readFileSync(join(root, 'tailwind.config.js'), 'utf8');
+    const css = readFileSync(join(root, 'app', 'globals.css'), 'utf8');
+    expect(layout).not.toContain('cdn.tailwindcss.com');
+    expect(layout).toContain('./globals.css');
+    expect(css).toMatch(/@tailwind base;[\s\S]*@tailwind utilities;/);
+    for (const token of ["darkMode: 'class'", "'forest-deep': '#020617'", "primary: '#d97706'", "display: ['Outfit', 'sans-serif']"]) {
+      expect(config).toContain(token);
+    }
   });
 });
