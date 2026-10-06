@@ -31,6 +31,9 @@ const Dashboard: React.FC<{
   const [resumeToDelete, setResumeToDelete] = useState<{ resume: ResumeData; isPermanent: boolean } | null>(null);
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error' | 'loading'} | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
+  // Trava contra clique duplo: o ref bloqueia no mesmo instante (o state só atualiza no próximo render).
+  const deletingRef = useRef(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Estado para Geração de PDF e Preview
   const [printingResume, setPrintingResume] = useState<ResumeData | null>(null);
@@ -147,6 +150,9 @@ const Dashboard: React.FC<{
 
   // Mover para a Lixeira (Soft Delete)
   const handleMoveToTrash = async (resume: ResumeData) => {
+    if (deletingRef.current) return;
+    deletingRef.current = true;
+    setIsDeleting(true);
     try {
       await neonResumeService.moveToTrash(resume.id);
       setResumes(prev => prev.filter(r => r.id !== resume.id));
@@ -161,6 +167,11 @@ const Dashboard: React.FC<{
       setResumeToDelete(null);
     } catch (error: any) {
       setNotification({ message: error.message || "Erro ao mover para a lixeira.", type: 'error' });
+      setResumeToDelete(null);
+      void loadAllResumes(); // a lista passa a refletir o que o servidor realmente tem
+    } finally {
+      deletingRef.current = false;
+      setIsDeleting(false);
     }
   };
 
@@ -191,6 +202,9 @@ const Dashboard: React.FC<{
 
   // Exclusão Permanente (Hard Delete)
   const handlePermanentDelete = async (resume: ResumeData) => {
+    if (deletingRef.current) return;
+    deletingRef.current = true;
+    setIsDeleting(true);
     try {
       await neonResumeService.permanentDelete(resume.id);
       setTrashResumes(prev => prev.filter(r => r.id !== resume.id));
@@ -202,6 +216,11 @@ const Dashboard: React.FC<{
       setResumeToDelete(null);
     } catch (error: any) {
       setNotification({ message: error.message || "Erro na exclusão definitiva.", type: 'error' });
+      setResumeToDelete(null);
+      void loadAllResumes();
+    } finally {
+      deletingRef.current = false;
+      setIsDeleting(false);
     }
   };
 
@@ -829,7 +848,8 @@ const Dashboard: React.FC<{
                           ? handlePermanentDelete(resumeToDelete.resume) 
                           : handleMoveToTrash(resumeToDelete.resume)
                         }
-                        className="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold transition-all text-xs uppercase flex items-center justify-center gap-1.5"
+                        disabled={isDeleting}
+                        className="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold transition-all text-xs uppercase flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <span>{resumeToDelete.isPermanent ? 'Purgar' : 'Mover'}</span>
                         <span className="material-symbols-outlined text-[16px]">arrow_forward</span>

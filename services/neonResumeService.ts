@@ -121,6 +121,9 @@ export const neonResumeService = {
     try {
       const url = `/api/neon/resumes?id=${encodeURIComponent(id)}&action=permanent`;
       const res = await fetch(url, { method: 'DELETE', credentials: 'same-origin' });
+      // 404 = o currículo já não existe (ou não é do usuário): o objetivo da exclusão foi atingido, então
+      // não é erro para a interface (ex.: requisição repetida por clique duplo).
+      if (res.status === 404) return true;
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || `Erro ${res.status} ao excluir definitivamente.`);
