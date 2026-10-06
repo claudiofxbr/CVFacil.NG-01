@@ -37,6 +37,7 @@ export function createPayDb(): PayDb {
         const [uid, planId] = v;
         return db.orders.filter((o) => o.user_id === uid && o.plan_id === planId && o.status === 'pending' && o.checkout_url && db.now - o.created_at < 90 * 60_000).slice(-1).map((o) => ({ ...o }));
       }
+      if (t.startsWith('SELECT * FROM orders WHERE id')) return db.orders.filter((o) => o.id === v[0] && o.user_id === v[1]).map((o) => ({ ...o }));
       if (t.startsWith('SELECT * FROM orders WHERE reference_id')) return db.orders.filter((o) => o.reference_id === v[0]).map((o) => ({ ...o }));
       if (t.startsWith('SELECT id, plan_id, amount_cents, status, paid_at FROM orders')) {
         return db.orders.filter((o) => o.id === v[0] && o.user_id === v[1]).map((o) => ({ id: o.id, plan_id: o.plan_id, amount_cents: o.amount_cents, status: o.status, paid_at: o.paid_at }));

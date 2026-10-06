@@ -32,6 +32,13 @@ export async function getOrderForUser(orderId: string, userId: string): Promise<
   return (rows[0] as Order | undefined) ?? null;
 }
 
+/** Pedido completo do dono (para reconciliação). Alheio = inexistente. */
+export async function getOrderForReconcile(orderId: string, userId: string): Promise<Order | null> {
+  await ensurePaymentsSchema();
+  const rows = await sql`SELECT * FROM orders WHERE id = ${orderId} AND user_id = ${userId} LIMIT 1;`;
+  return (rows[0] as Order | undefined) ?? null;
+}
+
 export async function getOrderByReference(referenceId: string): Promise<Order | null> {
   await ensurePaymentsSchema();
   const rows = await sql`SELECT * FROM orders WHERE reference_id = ${referenceId} LIMIT 1;`;

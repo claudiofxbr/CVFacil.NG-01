@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import type { Plan } from './plans';
 
 /**
@@ -174,28 +174,84 @@ export interface PaymentFacts {
   paidAmountCents: number | null;
 }
 
-/**
- * Reconsulta na API a partir do id citado na notificação. O corpo da notificação NUNCA é fonte da
- * verdade: só serve para saber qual id consultar.
- * - ORDE_*: GET /orders/{id} -> charges[].status (PAID) e charges[].amount.value (campos não detalhados
- *   na doc de "consultar pedido": VALIDAR NO SANDBOX).
- * - CHEC_*: GET /checkouts/{id}. CONFIRMADO NO SANDBOX: antes do pagamento responde 200 SEM `charges`,
- *   então devolve null (não libera nada) até haver cobrança. A forma do webhook pós-pagamento ainda
- *   NÃO está confirmada: VALIDAR NO SANDBOX.
- */
-export async function resolvePaymentFacts(notificationId: unknown): Promise<PaymentFacts | null> {
-  if (typeof notificationId !== 'string' || !ID_RE.test(notificationId)) return null;
-  const isCheckout = notificationId.startsWith('CHEC_');
-  const json = await request('GET', `${isCheckout ? '/checkouts' : '/orders'}/${encodeURIComponent(notificationId)}`);
+const MAX_CHECKOUT_ORDERS = 5;
+
+/** Fatos de pagamento a partir de UM pedido (GET /orders/{id}). Formato CONFIRMADO NO SANDBOX. */
+function factsFromOrder(json: any): PaymentFacts | null {
   const referenceId = typeof json?.reference_id === 'string' ? json.reference_id : '';
   const charges: any[] | null = Array.isArray(json?.charges) ? json.charges : null;
   if (!referenceId || !charges) return null;
   const paidCharges = charges.filter((c) => c && c.status === 'PAID');
-  const amounts = paidCharges.map((c) => c?.amount?.value);
+  const amounts = paidCharges.map((c) => c?.amount?.value); // centavos inteiros (ex.: 1500)
   const known = amounts.length > 0 && amounts.every((v) => Number.isSafeInteger(v));
   return {
     referenceId,
     paid: paidCharges.length > 0,
-    paidAmountCents: known ? (amounts as number[]).reduce((s, v) => s + v, 0) : null,
+    paidAmountCents: known ? (amounts as number[]).reduce((sum, v) => sum + v, 0) : null,
+  };
+}
+
+/**
+ * Reconsulta na API a partir do id citado. O corpo da notificação NUNCA é fonte da verdade: só indica
+ * qual id consultar.
+ * - ORDE_*: GET /orders/{id} -> reference_id e charges[].status === 'PAID' / charges[].amount.value (centavos).
+ *   CONFIRMADO NO SANDBOX.
+ * - CHEC_*: GET /checkouts/{id} -> `reference_id` (o nosso) e `orders: [{ id: 'ORDE_...' }]`. O checkout NÃO
+ *   traz `charges` e continua ACTIVE mesmo depois de pago (CONFIRMADO NO SANDBOX); por isso cada pedido de
+ *   `orders[]` (até 5) é consultado e as cobranças PAID são somadas. Checkout sem `orders[]` (não pago) -> null.
+ *   Só entram na soma pedidos cujo reference_id é o do checkout.
+ */
+export async function resolvePaymentFacts(notificationId: unknown): Promise<PaymentFacts | null> {
+  if (typeof notificationId !== 'string' || !ID_RE.test(notificationId)) return null;
+
+  if (!notificationId.startsWith('CHEC_')) {
+    return factsFromOrder(await request('GET', `/orders/${encodeURIComponent(notificationId)}`));
+  }
+
+  const checkout = await request('GET', `/checkouts/${encodeURIComponent(notificationId)}`);
+  const referenceId = typeof checkout?.reference_id === 'string' ? checkout.reference_id : '';
+  const orderIds: string[] = Array.isArray(checkout?.orders)
+    ? checkout.orders
+        .map((o: any) => (typeof o?.id === 'string' ? o.id : ''))
+        .filter((id: string) => /^ORDE_[A-Za-z0-9-]{4,70}$/.test(id))
+        .slice(0, MAX_CHECKOUT_ORDERS)
+    : [];
+  if (!referenceId || orderIds.length === 0) return null;
+
+  let paid = false;
+  let total = 0;
+  let allKnown = true;
+  let considered = 0;
+  for (const id of orderIds) {
+    const facts = factsFromOrder(await request('GET', `/orders/${encodeURIComponent(id)}`));
+    if (!facts || facts.referenceId !== referenceId) continue;
+    considered += 1;
+    if (!facts.paid) continue;
+    paid = true;
+    if (facts.paidAmountCents === null) allKnown = false;
+    else total += facts.paidAmountCents;
+  }
+  if (considered === 0) return null;
+  return { referenceId, paid, paidAmountCents: paid && allKnown ? total : null };
+}
+
+/**
+ * DIAGNÓSTICO da assinatura (só booleanos e tamanhos; nunca token, header nem corpo): quais fórmulas
+ * casariam com o header recebido. Usado para descobrir como o PagBank assina no sandbox.
+ */
+export function diagnoseAuthenticity(rawBody: string, headerValue: string | null): Record<string, boolean | number> {
+  const secret = process.env.PAGBANK_TOKEN || '';
+  const given = (headerValue || '').trim().toLowerCase();
+  const sha = (v: string) => createHash('sha256').update(v).digest('hex');
+  const match = (expected: string) => given.length > 0 && expected === given;
+  return {
+    hasHeader: headerValue !== null,
+    headerLength: given.length,
+    bodyLength: rawBody.length,
+    tokenDashBody: match(sha(`${secret}-${rawBody}`)), // fórmula documentada (atual)
+    tokenBody: match(sha(`${secret}${rawBody}`)),
+    bodyDashToken: match(sha(`${rawBody}-${secret}`)),
+    tokenDashTrimmedBody: match(sha(`${secret}-${rawBody.trim()}`)),
+    hmacBodyKeyToken: match(createHmac('sha256', secret).update(rawBody).digest('hex')),
   };
 }

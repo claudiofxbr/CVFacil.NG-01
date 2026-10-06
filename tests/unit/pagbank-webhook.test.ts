@@ -54,9 +54,10 @@ describe('autenticidade (x-authenticity-token)', () => {
 });
 
 describe('POST webhook', () => {
-  it('assinatura inválida ou ausente -> 401 sem tocar no banco nem no PSP', async () => {
-    for (const sig of ['0'.repeat(64), 'lixo', null, sign('{"id":"ORDE_1111"}', 'token-errado')]) {
-      expect((await send({ id: 'ORDE_1111' }, { sig })).status).toBe(401);
+  it('assinatura inválida ou ausente SEM id candidato válido -> 401 sem tocar no banco nem no PSP', async () => {
+    for (const sig of ['0'.repeat(64), 'lixo', null, sign('{"id":"xyz"}', 'token-errado')]) {
+      expect((await send({ id: 'xyz' }, { sig })).status).toBe(401);
+      expect((await send({ foo: 1 }, { sig })).status).toBe(401);
     }
     expect(payDb.calls).toEqual([]);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -64,7 +65,8 @@ describe('POST webhook', () => {
 
   it('assina o corpo BRUTO: reserializar o JSON muda a assinatura', async () => {
     const raw = '{ "id" : "ORDE_1111" }';
-    expect((await send({}, { raw, sig: sign(JSON.stringify(JSON.parse(raw))) })).status).toBe(401);
+    expect(verifyAuthenticity(raw, sign(JSON.stringify(JSON.parse(raw))))).toBe(false);
+    expect(verifyAuthenticity(raw, sign(raw))).toBe(true);
     expect((await send({}, { raw })).status).toBe(200);
   });
 
