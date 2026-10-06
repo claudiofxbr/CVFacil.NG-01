@@ -3,16 +3,31 @@ on:
   push:
     branches: ['diag/**']
 jobs:
-  status:
+  db:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Consulta o checkout no sandbox (somente leitura)
+      - name: Pedidos e plano (somente leitura, sem e-mails nem dados pessoais)
         env:
           DB_URL: ${{ secrets.DATABASE_URL }}
-          PAGBANK_TOKEN: ${{ secrets.PAGBANK_TOKEN }}
         run: |
           echo "::add-mask::$DB_URL"
-          CID=$(psql "$DB_URL" -At -c "SELECT psp_order_id FROM orders ORDER BY created_at DESC LIMIT 1;" 2>/dev/null)
-          echo "checkout consultado: $CID"
-          CHECKOUT_ID="$CID" node diag/checkout-status.mjs
+          psql "$DB_URL" -At -F ' | ' -c "SELECT 'pedido', status, plan_id, amount_cents::text, to_char(created_at AT TIME ZONE 'America/Sao_Paulo','DD/MM HH24:MI:SS'), COALESCE(to_char(paid_at AT TIME ZONE 'America/Sao_Paulo','DD/MM HH24:MI:SS'),'-') FROM orders ORDER BY created_at DESC LIMIT 6;" 2>&1 | sed -E 's#postgres(ql)?://[^ ]+#<db-url>#g'
+          psql "$DB_URL" -At -F ' | ' -c "SELECT 'eventos_webhook', count(*)::text FROM webhook_events;" 2>&1 | sed -E 's#postgres(ql)?://[^ ]+#<db-url>#g'
+          psql "$DB_URL" -At -F ' | ' -c "SELECT 'conta_com_senha', plan, pdf_imports_used::text FROM users WHERE password_hash IS NOT NULL AND password_hash <> '';" 2>&1 | sed -E 's#postgres(ql)?://[^ ]+#<db-url>#g'
+  logs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Logs do app sobre pagamentos (somente leitura)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST || '69.62.87.38' }}
+          username: ${{ secrets.VPS_USER || 'root' }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: false
+          script: |
+            echo "=== hora do servidor (UTC): $(date -u +%H:%M:%S)"
+            echo "=== linhas de pagamento nos logs do app (pm2)"
+            pm2 logs cvfacil-ng --nostream --lines 600 2>/dev/null | grep -iE "pagbank|webhook|assinatura|signature|payments|checkout" | sed -E 's#(Bearer )[A-Za-z0-9._-]+#\1<omitido>#g; s#postgres(ql)?://[^ ]+#<db-url>#g' | tail -30
+            echo "=== webhooks recebidos no Traefik (ultimas 6h)"
+            docker logs --since 6h $(docker ps -q --filter name=easypanel-traefik) 2>&1 | grep -E "pagbank/webhook" | tail -10 | awk '{print $1, $4, $6, $7, $9}'
+            echo "=== fim"
