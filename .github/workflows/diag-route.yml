@@ -14,7 +14,13 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script_stop: false
           script: |
-            echo "=== trechos de main.yaml com cvfacil-ng"
-            grep -n -B6 -A14 "cvfacil-ng" /etc/easypanel/traefik/config/main.yaml | grep -viE "token|secret|password|key" | head -90
-            echo "=== o traefik le a pasta config como diretorio (provider)?"
-            docker inspect $(docker ps -q --filter name=easypanel-traefik) --format '{{range .Config.Cmd}}{{println .}}{{end}}' 2>/dev/null | grep -iE "providers|file|watch|directory" | head
+            echo "=== regras Host() em main.yaml que citam xavierbr-vps.tech"
+            grep -n "xavierbr-vps.tech" /etc/easypanel/traefik/config/main.yaml | head -20
+            echo "=== servicos que apontam para 8443 / 3012 / 8095"
+            grep -n -B3 -A3 "8443\|3012\|8095" /etc/easypanel/traefik/config/main.yaml | head -40
+            echo "=== o cvfacil-ng resolve para este IP?"
+            getent hosts cvfacil-ng.xavierbr-vps.tech | head -2
+            echo "=== configuracao estatica do traefik (providers)"
+            docker inspect $(docker ps -q --filter name=easypanel-traefik) --format '{{json .Args}} {{json .Config.Cmd}}' 2>/dev/null | cut -c1-600
+            echo "=== resposta publica atual (cabecalhos)"
+            curl -sk -I --max-time 8 https://cvfacil-ng.xavierbr-vps.tech/ | head -8
