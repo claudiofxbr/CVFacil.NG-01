@@ -13,7 +13,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="pt-BR" className="dark">
       <head>
         {/* Google Fonts: Inter and Outfit */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
