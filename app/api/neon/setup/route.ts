@@ -1,6 +1,7 @@
 import { sql } from '../../../../lib/neon';
 import { NextResponse } from 'next/server';
 import { adminGuard } from '../../../../lib/apiAuth';
+import { ensurePaymentsSchema } from '../../../../lib/payments';
 
 export const dynamic = 'force-dynamic';
 
@@ -84,6 +85,9 @@ export async function POST(req: Request) {
     await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_token_hash ON sessions(token_hash);`;
     await sql`CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);`;
 
+    // 4c. Pagamentos (aditivo): orders e webhook_events (mesmo DDL usado de forma lazy pelo código)
+    await ensurePaymentsSchema();
+
     // 5. Índices para performance e escalabilidade de busca
     await sql`CREATE INDEX IF NOT EXISTS idx_resumes_user_id ON resumes(user_id);`;
     await sql`CREATE INDEX IF NOT EXISTS idx_resumes_deleted_at ON resumes(deleted_at);`;
@@ -94,7 +98,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       message: "Estrutura do banco de dados Neon CVfacil.NG-01 inicializada com sucesso!",
-      tables: ["users", "resumes", "resume_versions", "sessions"]
+      tables: ["users", "resumes", "resume_versions", "sessions", "orders", "webhook_events"]
     });
   } catch (error: any) {
     console.error("Erro na inicialização do schema no Neon:", error);
