@@ -884,7 +884,7 @@ const Dashboard: React.FC<{
                    ? 'bg-red-500/10 border-red-500/40 text-red-400' 
                    : 'bg-forest-surface border-forest-border text-stone-300'
                }`}>
-                 📊 {resumes.length}/{maxActiveAllowed} Currículos Ativos ({isAdmin ? 'Administrador Ilimitado' : isFreePlan ? 'Plano Gratuito' : 'Plano Premium'})
+                 📊 {resumes.length}{isFreePlan && !isAdmin ? `/${maxActiveAllowed}` : ''} Currículos Ativos ({isAdmin ? 'Administrador Ilimitado' : isFreePlan ? 'Plano Gratuito' : 'Plano Pago'})
                </span>
                {resumes.length >= maxActiveAllowed && isFreePlan && !isAdmin && (
                  <span className="text-xs text-amber-400 font-bold">Limite atingido</span>
