@@ -206,9 +206,10 @@ jobs:
               exit 1
             fi
 
-            # Leitura inofensiva (userId inexistente): prova que a DATABASE_URL e o Neon funcionam
-            if ! curl -fsS -o /dev/null "http://127.0.0.1:3003/api/neon/resumes?userId=healthcheck-sem-dados"; then
-              echo "App no ar, mas sem acesso ao banco (DATABASE_URL invalida ou Neon inacessivel)."
+            # Login com credenciais inexistentes: 401 prova que a rota consultou o banco; 503 = Neon/DATABASE_URL com problema
+            DBC=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{"email":"healthcheck@example.invalid","password":"healthcheck-sem-conta"}' "http://127.0.0.1:3003/api/auth/login" || true)
+            if [ "$DBC" != "401" ]; then
+              echo "App no ar, mas sem acesso ao banco (http $DBC; DATABASE_URL invalida ou Neon inacessivel)."
               pm2 logs cvfacil-ng --nostream --lines 20 --err | sed -E 's#postgres(ql)?://[^ ]+#<db-url>#g' | tail -20
               exit 1
             fi
