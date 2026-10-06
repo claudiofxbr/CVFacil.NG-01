@@ -174,8 +174,9 @@ const Auth: React.FC = () => {
                     <div className="relative">
                         <span className="material-symbols-outlined absolute left-3 top-3 text-stone-500 text-[18px]">person</span>
                         <input 
-                            type="text" 
-                            placeholder="Seu Nome" 
+                            type="text"
+                            autoComplete="name"
+                            placeholder="Seu Nome"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             className="w-full bg-[#020617] border border-[#334155] rounded-xl py-2.5 pl-10 pr-4 text-stone-200 placeholder:text-stone-500 focus:border-amber-500 focus:outline-none transition-colors text-sm" 
@@ -190,8 +191,9 @@ const Auth: React.FC = () => {
                     <div className="relative">
                         <span className="material-symbols-outlined absolute left-3 top-3 text-stone-500 text-[18px]">mail</span>
                         <input 
-                            type="email" 
-                            placeholder="seu@email.com" 
+                            type="email"
+                            autoComplete="email"
+                            placeholder="seu@email.com"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             className="w-full bg-[#020617] border border-[#334155] rounded-xl py-2.5 pl-10 pr-4 text-stone-200 placeholder:text-stone-500 focus:border-amber-500 focus:outline-none transition-colors text-sm" 
@@ -206,8 +208,9 @@ const Auth: React.FC = () => {
                     <div className="relative">
                         <span className="material-symbols-outlined absolute left-3 top-3 text-stone-500 text-[18px]">lock</span>
                         <input 
-                            type="password" 
-                            placeholder="••••••••" 
+                            type="password"
+                            autoComplete={isLogin ? 'current-password' : 'new-password'}
+                            placeholder="••••••••"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             className="w-full bg-[#020617] border border-[#334155] rounded-xl py-2.5 pl-10 pr-4 text-stone-200 placeholder:text-stone-500 focus:border-amber-500 focus:outline-none transition-colors text-sm tracking-widest" 
