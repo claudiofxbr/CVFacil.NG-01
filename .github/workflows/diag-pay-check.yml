@@ -3,21 +3,10 @@ on:
   push:
     branches: ['diag/**']
 jobs:
-  db:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Pedidos e plano (somente leitura, sem e-mails)
-        env:
-          DB_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          echo "::add-mask::$DB_URL"
-          psql "$DB_URL" -At -F ' | ' -c "SELECT 'pedido', status, plan_id, amount_cents::text, to_char(created_at AT TIME ZONE 'America/Sao_Paulo','DD/MM HH24:MI:SS'), COALESCE(to_char(paid_at AT TIME ZONE 'America/Sao_Paulo','DD/MM HH24:MI:SS'),'-'), (psp_order_id IS NOT NULL)::text FROM orders ORDER BY created_at DESC LIMIT 6;" 2>&1 | sed -E 's#postgres(ql)?://[^ ]+#<db-url>#g'
-          psql "$DB_URL" -At -F ' | ' -c "SELECT 'eventos_webhook', count(*)::text FROM webhook_events;" 2>&1 | sed -E 's#postgres(ql)?://[^ ]+#<db-url>#g'
-          psql "$DB_URL" -At -F ' | ' -c "SELECT 'conta_com_senha', plan, pdf_imports_used::text FROM users WHERE password_hash IS NOT NULL AND password_hash <> '';" 2>&1 | sed -E 's#postgres(ql)?://[^ ]+#<db-url>#g'
   logs:
     runs-on: ubuntu-latest
     steps:
-      - name: Logs do app sobre pagamentos (somente leitura)
+      - name: Acessos ao webhook nos logs do servidor (somente leitura)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST || '69.62.87.38' }}
@@ -25,6 +14,11 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script_stop: false
           script: |
-            echo "=== linhas recentes de pagamento nos logs do app"
-            pm2 logs cvfacil-ng --nostream --lines 400 2>/dev/null | grep -iE "pagbank|webhook|payments|checkout|order" | sed -E 's#(Bearer )[A-Za-z0-9._-]+#\1<omitido>#g; s#postgres(ql)?://[^ ]+#<db-url>#g' | tail -40
+            echo "=== hora do servidor (UTC): $(date -u +%H:%M:%S)"
+            echo "=== logs de acesso do nginx que citam pagbank/webhook ou payments/"
+            for f in /var/log/nginx/access.log /var/log/nginx/access.log.1; do [ -f "$f" ] && grep -E "pagbank/webhook|/api/payments/|/payments/return" "$f" | sed -E 's/\?[^ "]*//' | awk '{print $1, $4, $6, $7, $9}' | tail -25; done
+            echo "=== logs do Traefik (container) que citam webhook"
+            docker logs --since 6h $(docker ps -q --filter name=easypanel-traefik) 2>&1 | grep -E "pagbank/webhook" | tail -10 | cut -c1-300
+            echo "=== logs de erro do app (pm2) ultimas linhas"
+            pm2 logs cvfacil-ng --nostream --err --lines 40 2>/dev/null | sed -E 's#postgres(ql)?://[^ ]+#<db-url>#g' | tail -25
             echo "=== fim"
