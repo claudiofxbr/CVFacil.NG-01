@@ -14,13 +14,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script_stop: false
           script: |
-            echo "=== arquivos de config do traefik"
-            ls -la /etc/easypanel/traefik/ /etc/easypanel/traefik/config 2>/dev/null | head -30
-            echo "=== quais citam cvfacil (exceto acme.json)"
-            grep -rIl "cvfacil" /etc/easypanel/traefik 2>/dev/null | grep -v acme.json | head
-            for f in $(grep -rIl "cvfacil" /etc/easypanel/traefik 2>/dev/null | grep -v acme.json | head -3); do echo "----- $f"; grep -viE "token|secret|password|key" "$f" | head -70; done
-            echo "=== quem escuta 8443 / 3012 / 8095 / 3003"
-            ss -ltnp 2>/dev/null | grep -E ":(8443|3012|8095|3003) " | sed -E 's/users:\(\(//' | head -8
-            echo "=== processos caddy"
-            pgrep -a caddy 2>/dev/null | head -3
-            systemctl is-active caddy 2>/dev/null
+            echo "=== trechos de main.yaml com cvfacil-ng"
+            grep -n -B6 -A14 "cvfacil-ng" /etc/easypanel/traefik/config/main.yaml | grep -viE "token|secret|password|key" | head -90
+            echo "=== o traefik le a pasta config como diretorio (provider)?"
+            docker inspect $(docker ps -q --filter name=easypanel-traefik) --format '{{range .Config.Cmd}}{{println .}}{{end}}' 2>/dev/null | grep -iE "providers|file|watch|directory" | head
