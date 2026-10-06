@@ -7,6 +7,15 @@ interface NavbarProps {
   onMenuClick: () => void;
 }
 
+// Título do cabeçalho em português, igual aos rótulos do menu lateral (antes mostrava o nome interno em inglês).
+const VIEW_TITLES: Record<ViewState, string> = {
+  [ViewState.AUTH]: 'Entrar',
+  [ViewState.DASHBOARD]: 'Dashboard',
+  [ViewState.EDITOR]: 'Editar Currículo',
+  [ViewState.PRICING]: 'Planos',
+  [ViewState.SETTINGS]: 'Configurações',
+};
+
 const Navbar: React.FC<NavbarProps> = ({ currentView, userInfo, onMenuClick }) => {
   return (
     <>
@@ -25,7 +34,7 @@ const Navbar: React.FC<NavbarProps> = ({ currentView, userInfo, onMenuClick }) =
 
       {/* Top Desktop Bar */}
       <header className="hidden md:flex h-20 items-center justify-between px-8 lg:px-12 border-b border-forest-border/50 bg-forest-base z-30 flex-shrink-0">
-        <h2 className="text-lg font-bold text-white capitalize">{currentView.toLowerCase()}</h2>
+        <h2 className="text-lg font-bold text-white">{VIEW_TITLES[currentView]}</h2>
         <div className="flex items-center gap-6">
             <button className="relative text-stone-400 hover:text-white transition-colors">
                 <span className="material-symbols-outlined">notifications</span>
