@@ -80,6 +80,8 @@ export function createPayDb(): PayDb {
         const u = db.users.find((x) => x.id === v[0]);
         return u ? [{ plan: u.plan, credits: u.credits ?? 5 }] : [];
       }
+      if (t.startsWith('SELECT * FROM resumes WHERE user_id')) return db.resumes.filter((r) => r.user_id === v[0] && !r.deleted_at);
+      if (t.startsWith('SELECT * FROM resumes WHERE deleted_at IS NULL')) return db.resumes.filter((r) => !r.deleted_at);
       if (t.startsWith('SELECT id, user_id FROM resumes WHERE id')) return db.resumes.filter((r) => r.id === v[0]).map((r) => ({ id: r.id, user_id: r.user_id }));
       if (t.startsWith('SELECT count(*) as total FROM resumes')) return [{ total: db.resumes.filter((r) => r.user_id === v[0] && !r.deleted_at).length }];
       if (t.startsWith('SELECT count(*) as total FROM resume_versions')) return [{ total: 0 }];

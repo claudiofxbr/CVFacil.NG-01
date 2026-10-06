@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server';
 import { createHash, randomUUID } from 'node:crypto';
 import { diagnoseAuthenticity, resolvePaymentFacts, verifyAuthenticity } from '../../../../../lib/pagbank';
 import { getOrderByReference, getOrderOwnerEmail, isEventProcessed, recordEvent } from '../../../../../lib/orders';
-import { releaseIfConfirmed } from '../../../../../lib/paymentRelease';
-import { isAdminEmail } from '../../../../../lib/session';
+import { emailMayUseSandboxPayments, releaseIfConfirmed } from '../../../../../lib/paymentRelease';
 import { clientIp } from '../../../../../lib/authRateLimit';
 import { hitExceeds } from '../../../../../lib/rateLimit';
 
@@ -72,9 +71,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, ignored: true });
     }
 
-    const outcome = await releaseIfConfirmed(order, facts, async () => isAdminEmail(await getOrderOwnerEmail(order.user_id)));
+    const outcome = await releaseIfConfirmed(order, facts, async () => emailMayUseSandboxPayments(await getOrderOwnerEmail(order.user_id)));
     if (outcome === 'mismatch') console.error('pagbank webhook: referência ou valor divergente do pedido', order.id);
-    if (outcome === 'blocked') console.error('pagbank webhook: plano não concedido fora de produção (dono não é admin)', order.id);
+    if (outcome === 'blocked') console.error('pagbank webhook: plano não concedido fora de produção (dono não é admin nem testador)', order.id);
 
     // Assinado: registra sempre. Não assinado: só registra quando algo foi efetivamente decidido.
     if (signed || outcome === 'granted' || outcome === 'already') await recordEvent(randomUUID(), eventId, order.id);

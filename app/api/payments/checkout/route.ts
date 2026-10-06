@@ -8,6 +8,7 @@ import { attachCheckout, findReusableCheckout } from '../../../../lib/orders';
 import { createCheckout, isPaymentsProduction } from '../../../../lib/pagbank';
 import { hitExceeds } from '../../../../lib/rateLimit';
 import { appBaseUrl } from '../../../../lib/appUrl';
+import { canUseSandboxPayments } from '../../../../lib/paymentRelease';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,8 +27,8 @@ export async function POST(req: Request) {
   const ctx = await authContext(req);
   if (ctx instanceof NextResponse) return ctx;
 
-  // Trava: fora de produção o cartão de teste é público; sem isto qualquer logado "compraria" plano de graça.
-  if (!isPaymentsProduction() && !ctx.isAdmin) {
+  // Trava: fora de produção o cartão de teste é público; sem isto qualquer logado "compraria" plano de graça. Liberado só a admin ou testador (SANDBOX_TESTER_EMAILS).
+  if (!isPaymentsProduction() && !canUseSandboxPayments({ isAdmin: ctx.isAdmin, email: ctx.email })) {
     return NextResponse.json({ error: 'Pagamentos em breve.', code: 'PAYMENTS_NOT_AVAILABLE' }, { status: 403 });
   }
 

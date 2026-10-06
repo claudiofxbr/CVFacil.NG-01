@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { authContext } from '../../../../../lib/apiAuth';
 import { getOrderForUser } from '../../../../../lib/orders';
-import { reconcileOrder } from '../../../../../lib/paymentRelease';
+import { canUseSandboxPayments, reconcileOrder } from '../../../../../lib/paymentRelease';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +21,7 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
     if (!order) return notFound();
     if (order.status === 'pending') {
       // Rede de segurança do webhook: reconsulta o PagBank (limitada a 1 vez por 10 s por pedido).
-      await reconcileOrder(order.id, ctx.id, ctx.isAdmin);
+      await reconcileOrder(order.id, ctx.id, canUseSandboxPayments({ isAdmin: ctx.isAdmin, email: ctx.email }));
       order = (await getOrderForUser(id, ctx.id)) ?? order;
     }
     return NextResponse.json({ id: order.id, status: order.status, planId: order.plan_id });

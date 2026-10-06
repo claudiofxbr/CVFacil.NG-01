@@ -64,6 +64,16 @@ export function isAdminEmail(email: string | null | undefined): boolean {
   return list.includes(email.trim().toLowerCase());
 }
 
+/**
+ * "Testador de pagamentos" (ex.: avaliador do PagBank): SANDBOX_TESTER_EMAILS (vírgula). Sem a env, ninguém é.
+ * NÃO é administrador: só habilita comprar no sandbox (ver canUseSandboxPayments); nenhum outro privilégio.
+ */
+export function isSandboxTesterEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  const list = (process.env.SANDBOX_TESTER_EMAILS || '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+  return list.includes(email.trim().toLowerCase());
+}
+
 export const sessionCookieOptions = (maxAge: number) => ({
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
