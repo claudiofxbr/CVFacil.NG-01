@@ -110,13 +110,16 @@ export function identityFromMe(me: {
   };
 }
 
-/** null = sem sessão válida (ou servidor indisponível: nunca assume identidade). */
+/**
+ * null = sem sessão válida (ou servidor indisponível: nunca assume identidade).
+ * Usa ?optional=1: sem sessão o servidor responde 200 {authenticated:false} em vez de 401 (sem ruído no console).
+ */
 export async function fetchSession(): Promise<SessionIdentity | null> {
   try {
-    const res = await fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' });
+    const res = await fetch('/api/auth/me?optional=1', { credentials: 'same-origin', cache: 'no-store' });
     if (!res.ok) return null;
     const me = await res.json();
-    if (!me || typeof me.id !== 'string' || typeof me.email !== 'string') return null;
+    if (!me || me.authenticated === false || typeof me.id !== 'string' || typeof me.email !== 'string') return null;
     return identityFromMe(me);
   } catch {
     return null;

@@ -80,6 +80,28 @@ describe('authClient (fetch mockado)', () => {
   });
 });
 
+describe('fetchSession usa o modo opcional (sem 401 no console antes do login)', () => {
+  it('chama GET /api/auth/me?optional=1 com credentials same-origin', async () => {
+    const f = vi.fn().mockResolvedValue(json(200, { authenticated: false }));
+    vi.stubGlobal('fetch', f);
+    await fetchSession();
+    expect(f.mock.calls[0][0]).toBe('/api/auth/me?optional=1');
+    expect(f.mock.calls[0][1].credentials).toBe('same-origin');
+  });
+  it('200 {authenticated:false} -> deslogado (null)', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(200, { authenticated: false })));
+    expect(await fetchSession()).toBeNull();
+  });
+  it('503 continua tratado como sem sessão (nunca assume identidade)', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(503, { error: 'AUTH_UNAVAILABLE' })));
+    expect(await fetchSession()).toBeNull();
+  });
+  it('sessão válida continua gerando identidade', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(200, { id: 'u1', email: 'a@b.com', role: 'user', name: 'Ana' })));
+    expect((await fetchSession())?.user.id).toBe('u1');
+  });
+});
+
 describe('fontes: não há mais entrada sem credencial no servidor', () => {
   const root = join(__dirname, '..', '..');
   const auth = readFileSync(join(root, 'components', 'Auth.tsx'), 'utf8');

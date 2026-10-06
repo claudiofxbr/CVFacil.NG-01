@@ -240,6 +240,39 @@ describe('sessão / requireUser / me / whoami', () => {
     const other = await signup('comum@x.com');
     expect((await (await me(withCookie(other.token))).json()).role).toBe('user');
   });
+  it('me: sem sessão e sem ?optional -> 401 (contrato de segurança inalterado)', async () => {
+    const res = await me(new Request('http://x/api/auth/me'));
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'UNAUTHENTICATED' });
+    expect((await me(new Request('http://x/api/auth/me?optional=0'))).status).toBe(401);
+  });
+  it('me?optional=1: sem sessão / token inválido / expirada -> 200 {authenticated:false}, sem dados de usuário', async () => {
+    const { token } = await signup();
+    const tampered = (token[0] === 'A' ? 'B' : 'A') + token.slice(1);
+    const url = 'http://x/api/auth/me?optional=1';
+    for (const req of [new Request(url), withCookie(tampered, url), withCookie('curto', url)]) {
+      const res = await me(req);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ authenticated: false });
+    }
+    db.sessions[0].expires = Date.now() - 1000;
+    const expired = await me(withCookie(token, url));
+    expect(expired.status).toBe(200);
+    expect(await expired.json()).toEqual({ authenticated: false });
+  });
+  it('me?optional=1: com sessão válida responde igual a hoje (dados do usuário)', async () => {
+    const { token } = await signup('ok@x.com');
+    const res = await me(withCookie(token, 'http://x/api/auth/me?optional=1'));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toMatchObject({ id: db.users[0].id, email: 'ok@x.com', role: 'user', plan: 'free', credits: 5 });
+    expect(body.authenticated).toBeUndefined();
+  });
+  it('me?optional=1: banco indisponível continua 503 (erro real não é mascarado)', async () => {
+    const { token } = await signup();
+    db.fail = true;
+    expect((await me(withCookie(token, 'http://x/api/auth/me?optional=1'))).status).toBe(503);
+  });
   it('respostas não vazam token nem hash', async () => {
     const { token } = await signup();
     const body = await (await me(withCookie(token))).text();
