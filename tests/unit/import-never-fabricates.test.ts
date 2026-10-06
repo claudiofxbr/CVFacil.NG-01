@@ -12,6 +12,9 @@ import { join } from 'node:path';
  */
 let generate: (args: any) => any;
 
+// Sem banco real: usuário free (sem cota de plano) e limitador de taxa cai para memória.
+vi.mock('../../lib/neon', () => ({ sql: async () => [{ plan: 'free' }] }));
+
 // As rotas de IA agora exigem sessão (coberta em protected-routes.test.ts); aqui a sessão é simulada.
 vi.mock('../../lib/requireUser', async (orig) => ({
   ...(await orig<any>()),

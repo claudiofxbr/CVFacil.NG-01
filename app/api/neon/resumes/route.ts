@@ -1,5 +1,6 @@
 import { sql } from '../../../../lib/neon';
 import { authContext, findAccessibleResume, notFoundResume } from '../../../../lib/apiAuth';
+import { resolvePlan } from '../../../../lib/plans';
 import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -177,6 +178,8 @@ export async function POST(req: NextRequest) {
     const userProfile = userRows[0];
     const isAdmin = ctx.isAdmin;
     const isFreePlan = (userProfile.plan || 'free').toLowerCase() === 'free';
+    // Plano pago (users.plan = basico|padrao|premium): limite de currículos do plano, sem consumo de créditos.
+    const paidPlan = resolvePlan(userProfile.plan);
 
     // 2. Verificar se o currículo já existe no banco
     const existingRows = await sql`
@@ -189,25 +192,28 @@ export async function POST(req: NextRequest) {
       return notFoundResume();
     }
 
-    // 3. Regra de Limite de Documentos: Plano Free permite no máximo 3 currículos ativos simultâneos
-    if (!isUpdate && isFreePlan && !isAdmin) {
+    // 3. Limite de documentos: plano pago usa o limite do plano; free mantém 3 currículos ativos
+    const documentLimit = paidPlan ? paidPlan.maxResumes : (isFreePlan ? 3 : null);
+    if (!isUpdate && !isAdmin && documentLimit !== null) {
       const countRows = await sql`
         SELECT count(*) as total FROM resumes
         WHERE user_id = ${resume.userId} AND deleted_at IS NULL;
       `;
       const currentActiveCount = Number(countRows[0]?.total || 0);
-      if (currentActiveCount >= 3) {
+      if (currentActiveCount >= documentLimit) {
         return NextResponse.json({
-          error: "Limite de Documentos Atingido: Usuários do plano gratuito podem manter no máximo 3 currículos ativos simultâneos. Mova um currículo para a lixeira ou faça upgrade do plano para continuar.",
+          error: paidPlan
+            ? `Limite de Documentos Atingido: o plano ${paidPlan.name} permite no máximo ${documentLimit} currículos ativos simultâneos. Mova um currículo para a lixeira ou faça upgrade do plano para continuar.`
+            : "Limite de Documentos Atingido: Usuários do plano gratuito podem manter no máximo 3 currículos ativos simultâneos. Mova um currículo para a lixeira ou faça upgrade do plano para continuar.",
           code: "DOCUMENT_LIMIT_EXCEEDED",
           currentCount: currentActiveCount,
-          maxAllowed: 3
+          maxAllowed: documentLimit
         }, { status: 403 });
       }
     }
 
     // 4. Regra de Consumo de Créditos (aplicável se for importação nova ou se requisitado consumo)
-    const shouldConsumeCredit = !isUpdate || rawResume.consumeCredit === true;
+    const shouldConsumeCredit = (!isUpdate || rawResume.consumeCredit === true) && !paidPlan;
     if (shouldConsumeCredit && !isAdmin) {
       const currentCredits = Number(userProfile.credits ?? 5);
       if (currentCredits <= 0) {

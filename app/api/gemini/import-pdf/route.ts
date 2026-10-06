@@ -1,7 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { buildAiFailure, isApiKeyUsable, isAuthError } from "../../../../lib/geminiErrors";
 import { NextRequest, NextResponse } from "next/server";
-import { aiGuard } from "../../../../lib/apiAuth";
+import { withImportQuota } from "../../../../lib/entitlements";
 
 const resumeSchema = {
   type: Type.OBJECT,
@@ -73,9 +73,7 @@ const resumeSchema = {
   required: ["fullName", "role", "summary", "experiences", "education", "skills"]
 };
 
-export async function POST(req: NextRequest) {
-  const guard = await aiGuard(req);
-  if (guard instanceof NextResponse) return guard;
+async function handle(req: NextRequest) {
   try {
     const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
     if (!isApiKeyUsable(apiKey)) {
@@ -188,3 +186,6 @@ Regras Críticas e Estritas de Fidelidade:
     return NextResponse.json({ error: "Erro ao processar PDF com a IA.", code: "IMPORT_FAILED" }, { status: 500 });
   }
 }
+
+// Sessão + limite de IA + cota de importações do plano pago (estornada se a importação falhar).
+export const POST = (req: NextRequest) => withImportQuota(req, handle);
