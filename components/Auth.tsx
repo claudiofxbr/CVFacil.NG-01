@@ -64,7 +64,7 @@ const Auth: React.FC = () => {
       // A credencial é validada SEMPRE no servidor (sessão por cookie HttpOnly).
       const result = isLogin
         ? await login(email, password)
-        : await register(email, password, name);
+        : await register(email, password, name, avatarPreview);
       setNotification(result.ok
         ? { message: `${isLogin ? 'Login' : 'Cadastro'} realizado com sucesso!`, type: 'success' }
         : { message: result.message, type: 'error' });
@@ -124,7 +124,7 @@ const Auth: React.FC = () => {
                 <div className="mt-3 flex items-center justify-center gap-1.5">
                     <div className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]"></div>
                     <span className="text-[10px] uppercase tracking-wider font-extrabold text-stone-400">
-                        MODO LOCAL (OFFLINE)
+                        CONECTADO AO SERVIDOR
                     </span>
                 </div>
             </div>
@@ -233,7 +233,7 @@ const Auth: React.FC = () => {
             </form>
 
             <div className="mt-8 text-center">
-                 <a href="#" className="text-xs text-primary hover:text-white transition-colors uppercase tracking-wider font-bold">Esqueceu sua senha?</a>
+                 <a href="#" onClick={(e) => { e.preventDefault(); setNotification({ message: 'Recuperação de senha indisponível no momento. Contate o administrador.', type: 'error' }); }} className="text-xs text-primary hover:text-white transition-colors uppercase tracking-wider font-bold">Esqueceu sua senha?</a>
             </div>
         </div>
 

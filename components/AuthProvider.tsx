@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User } from '../types';
-import { fetchSession, serverLogin, serverLogout, serverRegister, type AuthResult, type SessionIdentity } from '../services/authClient';
+import { fetchSession, serverLogin, serverLogout, serverRegister, serverUpdateProfile, type AuthResult, type SessionIdentity } from '../services/authClient';
 
 interface AuthContextType {
   user: SessionIdentity['user'] | null;
@@ -11,7 +11,8 @@ interface AuthContextType {
   /** Vem exclusivamente de GET /api/auth/me (ADMIN_EMAILS no servidor). */
   isAdmin: boolean;
   login: (email: string, password: string) => Promise<AuthResult>;
-  register: (email: string, password: string, name: string) => Promise<AuthResult>;
+  register: (email: string, password: string, name: string, avatar?: string | null) => Promise<AuthResult>;
+  updateProfile: (patch: { name?: string; avatar?: string | null }) => Promise<AuthResult>;
   /** false = a sessão pode não ter sido revogada no servidor (a interface sai de qualquer forma). */
   logout: () => Promise<boolean>;
 }
@@ -23,6 +24,7 @@ const AuthContext = createContext<AuthContextType>({
   isAdmin: false,
   login: async () => ({ ok: false, message: 'Indisponível.' }),
   register: async () => ({ ok: false, message: 'Indisponível.' }),
+  updateProfile: async () => ({ ok: false, message: 'Indisponível.' }),
   logout: async () => true,
 });
 
@@ -54,8 +56,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password: string) =>
     startSession(await serverLogin(email.trim().toLowerCase(), password));
 
-  const register = async (email: string, password: string, name: string) =>
-    startSession(await serverRegister(email.trim().toLowerCase(), password, name.trim()));
+  const register = async (email: string, password: string, name: string, avatar?: string | null) =>
+    startSession(await serverRegister(email.trim().toLowerCase(), password, name.trim(), avatar));
+
+  const updateProfile = async (patch: { name?: string; avatar?: string | null }): Promise<AuthResult> => {
+    const result = await serverUpdateProfile(patch);
+    if (result.ok) await refreshSession(); // a interface passa a refletir o que o servidor guardou
+    return result;
+  };
 
   const logout = async () => {
     const revoked = await serverLogout();
@@ -70,7 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, isAdmin, login, register, logout }}>
+    <AuthContext.Provider value={{ user, profile, loading, isAdmin, login, register, updateProfile, logout }}>
       {children}
     </AuthContext.Provider>
   );

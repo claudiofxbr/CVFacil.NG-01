@@ -5,11 +5,10 @@ import { SESSION_EXPIRED_MESSAGE } from '../services/authClient';
 
 interface SettingsProps {
   userInfo: User;
-  onProfileUpdate: (name: string, email: string, avatar?: string) => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({ userInfo, onProfileUpdate }) => {
-  const { isAdmin } = useAuth();
+const Settings: React.FC<SettingsProps> = ({ userInfo }) => {
+  const { isAdmin, updateProfile } = useAuth();
   const [activeTab, setActiveTab] = useState<'profile' | 'connections'>('profile');
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
 
@@ -61,13 +60,19 @@ const Settings: React.FC<SettingsProps> = ({ userInfo, onProfileUpdate }) => {
 
   // Perfil Pessoal
   const [name, setName] = useState(userInfo.name);
-  const [email, setEmail] = useState(userInfo.email);
-  const [avatar] = useState(userInfo.avatar);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
-  // Não há endpoint de perfil no servidor: a edição vale só para a sessão atual (interface).
-  const handleSaveProfile = () => {
-    onProfileUpdate(name, email, avatar);
-    setNotification({ message: 'Alterações aplicadas nesta sessão. Ainda não são salvas no servidor.', type: 'success' });
+  // Persiste no servidor (PATCH /api/auth/profile); o e-mail não é editável.
+  const handleSaveProfile = async () => {
+    setIsSavingProfile(true);
+    try {
+      const result = await updateProfile({ name });
+      setNotification(result.ok
+        ? { message: 'Perfil atualizado com sucesso!', type: 'success' }
+        : { message: result.message, type: 'error' });
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   return (
@@ -173,8 +178,8 @@ const Settings: React.FC<SettingsProps> = ({ userInfo, onProfileUpdate }) => {
                   <label className="text-xs font-bold text-stone-500 uppercase">Email</label>
                   <input 
                     type="email" 
-                    value={email} 
-                    onChange={(e) => setEmail(e.target.value)}
+                    value={userInfo.email} 
+                    readOnly
                     className="w-full bg-forest-deep border border-forest-border rounded-lg p-3 text-white focus:border-primary focus:outline-none" 
                   />
                 </div>
@@ -182,6 +187,7 @@ const Settings: React.FC<SettingsProps> = ({ userInfo, onProfileUpdate }) => {
               <div className="mt-6 flex justify-end">
                 <button 
                   onClick={handleSaveProfile}
+                  disabled={isSavingProfile}
                   className="bg-primary hover:bg-secondary text-white px-6 py-2 rounded-lg font-bold transition-all disabled:opacity-50"
                 >
                   Salvar Alterações

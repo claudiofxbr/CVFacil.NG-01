@@ -43,16 +43,6 @@ const AppContent: React.FC = () => {
     setView(ViewState.AUTH);
   };
 
-  // Função para atualizar o perfil em tempo real quando alterado nas Configurações
-  const handleProfileUpdate = (updatedName: string, updatedEmail: string, updatedAvatar?: string) => {
-    setUserInfo(prev => ({
-        ...prev,
-        name: updatedName,
-        email: updatedEmail,
-        avatar: updatedAvatar || prev.avatar
-    }));
-  };
-
   // Criar novo: reseta o ID de edição
   const handleCreateResume = (templateId: string) => {
     setSelectedTemplateId(templateId);
@@ -111,7 +101,6 @@ const AppContent: React.FC = () => {
        {view === ViewState.SETTINGS && (
          <Settings 
             userInfo={userInfo} 
-            onProfileUpdate={handleProfileUpdate}
          />
        )}
     </Layout>

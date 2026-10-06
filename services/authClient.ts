@@ -49,11 +49,36 @@ export async function serverLogin(email: string, password: string): Promise<Auth
   return { ok: false, message: MESSAGES[res.status] || 'Erro ao processar autenticação.' };
 }
 
-export async function serverRegister(email: string, password: string, name: string): Promise<AuthResult> {
-  const res = await post('/api/auth/register', { email, password, name });
+export async function serverRegister(email: string, password: string, name: string, avatar?: string | null): Promise<AuthResult> {
+  const res = await post('/api/auth/register', avatar ? { email, password, name, avatar } : { email, password, name });
   if (!res) return { ok: false, message: MESSAGES[503] };
   if (res.ok) return { ok: true };
   return { ok: false, message: messageForRegisterError(res.status, await errorCode(res)) };
+}
+
+const PROFILE_MESSAGES: Record<string, string> = {
+  INVALID_NAME: 'O nome deve ter entre 1 e 120 caracteres.',
+  INVALID_AVATAR: 'Foto inválida: use PNG, JPEG ou WEBP de até 150 KB.',
+  EMAIL_NOT_EDITABLE: 'O e-mail não pode ser alterado.',
+};
+
+/** Salva nome e/ou avatar no servidor (PATCH /api/auth/profile). avatar null remove a foto. */
+export async function serverUpdateProfile(patch: { name?: string; avatar?: string | null }): Promise<AuthResult> {
+  let res: Response;
+  try {
+    res = await fetch('/api/auth/profile', {
+      method: 'PATCH',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    });
+  } catch {
+    return { ok: false, message: MESSAGES[503] };
+  }
+  if (res.ok) return { ok: true };
+  if (res.status === 401) return { ok: false, message: SESSION_EXPIRED_MESSAGE };
+  const code = await errorCode(res);
+  return { ok: false, message: (code && PROFILE_MESSAGES[code]) || MESSAGES[res.status] || 'Não foi possível salvar o perfil.' };
 }
 
 /** true = sessão revogada no servidor; false = falha (rede/5xx), o cookie pode continuar válido. */

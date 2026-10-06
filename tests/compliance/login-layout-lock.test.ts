@@ -15,6 +15,9 @@ import { join } from 'node:path';
  * Exceção autorizada pelo dono (etapa 4, "remover tudo"): foram retirados os atalhos "Entrar como: …"
  * (login sem senha como administrador) e o seletor de tipo de conta; por isso saíram os marcadores
  * 'Entrar como:' e 'administrar do aplicativo CVFacil.NG'. Todo o resto do layout permanece travado.
+ *
+ * Exceção autorizada pelo dono (P5): o indicador de conexão trocou de 'MODO LOCAL (OFFLINE)' para
+ * 'CONECTADO AO SERVIDOR' (o login agora é validado no servidor); mesmo elemento e mesmo estilo.
  */
 const root = join(__dirname, '..', '..');
 const auth = readFileSync(join(root, 'components', 'Auth.tsx'), 'utf8');
@@ -23,7 +26,7 @@ const layout = readFileSync(join(root, 'app', 'layout.tsx'), 'utf8');
 const MARCADORES_FOTO01 = [
   'Construa sua identidade profissional.',
   'Bem-vindo de volta!',
-  'MODO LOCAL (OFFLINE)',
+  'CONECTADO AO SERVIDOR',
   'CADASTRO',
   'CARREGAR FOTO',
   '3X4',

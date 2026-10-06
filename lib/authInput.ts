@@ -17,10 +17,10 @@ export function validPasswordShape(v: unknown): v is string {
 
 export const passwordPolicyOk = (v: string) => v.length >= PASSWORD_MIN && v.length <= PASSWORD_MAX;
 
-export async function readJson(req: Request): Promise<Record<string, unknown> | null> {
+export async function readJson(req: Request, maxChars = 4096): Promise<Record<string, unknown> | null> {
   try {
     const raw = await req.text();
-    if (raw.length > 4096) return null;
+    if (raw.length > maxChars) return null;
     const b = JSON.parse(raw);
     return b && typeof b === 'object' && !Array.isArray(b) ? (b as Record<string, unknown>) : null;
   } catch {
