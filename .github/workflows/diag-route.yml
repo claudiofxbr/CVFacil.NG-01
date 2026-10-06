@@ -14,11 +14,13 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script_stop: false
           script: |
-            echo "=== arquivos que citam o host antigo (cvfacil-ng.xavierbr)"
-            grep -rIl "cvfacil-ng.xavierbr" /etc /opt /root /srv /var/lib/docker/volumes 2>/dev/null | grep -v "/node_modules/" | head -20
-            echo "=== containers (nomes) cvfacil/traefik"
-            docker ps -a --format '{{.Names}} {{.Status}}' 2>/dev/null | grep -iE "cvfacil|traefik" | head -20
-            echo "=== nginx sites que citam cvfacil"
-            grep -rl "cvfacil" /etc/nginx 2>/dev/null | head
-            echo "=== quem escuta 80/443"
-            ss -ltnp 2>/dev/null | grep -E ":(80|443) " | sed -E 's/users:\(\(//' | head -5
+            echo "=== containers (todos, nomes e portas)"
+            docker ps -a --format '{{.Names}} | {{.Status}} | {{.Ports}}' 2>/dev/null | cut -c1-140 | head -40
+            echo "=== Caddyfile (sem linhas de credencial)"
+            grep -viE "token|secret|password|passwd|key|authorization|bearer" /opt/caddy-cvfacil/Caddyfile 2>/dev/null | head -80
+            echo "=== quem escuta 80 e 443"
+            ss -ltnp 2>/dev/null | grep -E ":(80|443|8080|8443) " | sed -E 's/users:\(\(//' | head -8
+            echo "=== nginx cvfacil-ng (site)"
+            grep -viE "token|secret|password|key" /etc/nginx/sites-available/cvfacil-ng 2>/dev/null | head -40
+            echo "=== resposta local por host"
+            for h in cvfacil-ng.xavierbr-vps.tech cvfacil.xavierbr-vps.tech; do echo "$h -> $(curl -sk -o /dev/null -w '%{http_code}' --resolve $h:443:127.0.0.1 https://$h/ --max-time 8)"; done
