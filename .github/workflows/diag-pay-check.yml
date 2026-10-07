@@ -3,14 +3,11 @@ on:
   push:
     branches: ['diag/**']
 jobs:
-  token:
+  methods:
     runs-on: ubuntu-latest
     steps:
-      - name: Confere se o token novo e aceito pelo sandbox (imprime so o codigo HTTP)
+      - uses: actions/checkout@v4
+      - name: Testa a lista de meios de pagamento no checkout do sandbox
         env:
           PAGBANK_TOKEN: ${{ secrets.PAGBANK_TOKEN }}
-        run: |
-          CODE=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $PAGBANK_TOKEN" -H "Accept: application/json" "https://sandbox.api.pagseguro.com/checkouts/CHEC_344148D4-26D6-4D38-92D0-CDB05BD5A07B")
-          echo "token novo no sandbox -> HTTP $CODE"
-          BAD=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer token-invalido-de-teste" -H "Accept: application/json" "https://sandbox.api.pagseguro.com/checkouts/CHEC_344148D4-26D6-4D38-92D0-CDB05BD5A07B")
-          echo "token invalido (controle) -> HTTP $BAD"
+        run: node diag/methods.mjs
