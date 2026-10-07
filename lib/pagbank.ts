@@ -111,7 +111,10 @@ export interface CheckoutResult {
  * CONFIRMADO NO SANDBOX (HTTP 201, status ACTIVE, customer_modifiable true):
  * - `customer` é OMITIDO e o POST é aceito (a doc só o exige com customer_modifiable=false);
  *   o cliente preenche os dados na página do PagBank.
- * - `payment_methods` é omitido (todos os meios habilitados na conta) e o POST é aceito.
+ * - `payment_methods` lista cartão de crédito, cartão de débito e PIX de forma explícita. Formato confirmado
+ *   no sandbox: array de OBJETOS `{type}` (HTTP 201, a resposta devolve a mesma lista); array de textos
+ *   simples (`["PIX"]`) é recusado com HTTP 400. Quais meios aparecem de fato ao cliente ainda depende de
+ *   o meio estar habilitado na conta PagBank (débito exige aprovação; PIX exige chave PIX).
  * - `payment_notification_urls` e `notification_urls` são ambos aceitos; enviamos o mesmo webhook
  *   nos dois (a doc não explica a diferença). O webhook é idempotente, então duplicatas são inofensivas.
  */
@@ -130,6 +133,7 @@ export async function createCheckout(input: {
         unit_amount: input.plan.priceCents,
       },
     ],
+    payment_methods: [{ type: 'CREDIT_CARD' }, { type: 'DEBIT_CARD' }, { type: 'PIX' }],
     redirect_url: input.urls.redirectUrl,
     return_url: input.urls.redirectUrl,
     payment_notification_urls: [input.urls.notificationUrl],

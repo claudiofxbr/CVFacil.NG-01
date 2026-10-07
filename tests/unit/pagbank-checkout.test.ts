@@ -58,6 +58,13 @@ describe('adaptador lib/pagbank.ts', () => {
     expect(body.payment_notification_urls).toEqual(['https://app/hook']);
   });
 
+  it('pede crédito, débito e PIX no formato aceito pelo PagBank (array de objetos {type}, não de textos)', async () => {
+    await createCheckout({ order: { reference_id: 'cvf_abc12345' }, plan: PLANS.basico, urls: { redirectUrl: 'https://app/return', notificationUrl: 'https://app/hook' } });
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.payment_methods).toEqual([{ type: 'CREDIT_CARD' }, { type: 'DEBIT_CARD' }, { type: 'PIX' }]);
+    expect(body.payment_methods.every((m: unknown) => typeof m === 'object' && m !== null)).toBe(true);
+  });
+
   it.each([
     [401, 'PSP_AUTH'], [403, 'PSP_AUTH'], [400, 'PSP_REJECTED'], [500, 'PSP_UNAVAILABLE'], [503, 'PSP_UNAVAILABLE'],
   ])('HTTP %i -> erro tipado %s sem vazar token nem corpo', async (status, code) => {
