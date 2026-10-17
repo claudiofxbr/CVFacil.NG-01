@@ -123,6 +123,33 @@ export async function serverAdminResetPassword(email: string): Promise<{ ok: tru
   return { ok: false, message: 'Resposta inesperada do servidor.' };
 }
 
+export const FORGOT_SENT_MESSAGE =
+  'Se este e-mail tiver uma conta, enviamos um link para criar uma nova senha. Confira a caixa de entrada e o spam; o link vale 30 minutos.';
+
+const RECOVERY_MESSAGES: Record<string, string> = {
+  INVALID_EMAIL: 'Informe um e-mail válido.',
+  MAIL_UNAVAILABLE: 'O envio de e-mail está indisponível no momento. Peça ao administrador para redefinir sua senha.',
+  WEAK_PASSWORD: 'A nova senha deve ter entre 8 e 128 caracteres.',
+  INVALID_OR_EXPIRED_TOKEN: 'Este link é inválido ou expirou. Peça um novo link de redefinição.',
+  INVALID_BODY: 'Este link é inválido. Peça um novo link de redefinição.',
+};
+
+async function recoveryRequest(path: string, body: unknown): Promise<AuthResult> {
+  const res = await post(path, body);
+  if (!res) return { ok: false, message: MESSAGES[503] };
+  if (res.ok) return { ok: true };
+  if (res.status === 429) return { ok: false, message: MESSAGES[429] };
+  const code = await errorCode(res);
+  return { ok: false, message: (code && RECOVERY_MESSAGES[code]) || MESSAGES[res.status] || 'Não foi possível concluir a operação.' };
+}
+
+/** Pede o link de redefinição por e-mail (POST /api/auth/forgot-password). Resposta igual exista ou não a conta. */
+export const serverForgotPassword = (email: string): Promise<AuthResult> => recoveryRequest('/api/auth/forgot-password', { email });
+
+/** Conclui a redefinição com o token recebido por e-mail (POST /api/auth/reset-password). */
+export const serverResetPassword = (token: string, newPassword: string): Promise<AuthResult> =>
+  recoveryRequest('/api/auth/reset-password', { token, newPassword });
+
 /** true = sessão revogada no servidor; false = falha (rede/5xx), o cookie pode continuar válido. */
 export async function serverLogout(): Promise<boolean> {
   const res = await post('/api/auth/logout');
