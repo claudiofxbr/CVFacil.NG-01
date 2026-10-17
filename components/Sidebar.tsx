@@ -1,6 +1,10 @@
 import React from 'react';
 import { ViewState } from '../types';
-// import { useAuth } from './FirebaseProvider';
+import { useAuth } from './AuthProvider';
+
+// Painel privado do artifact do Claude: só abre com o login do proprietário, então a URL em si não é credencial.
+// O item só é exibido a administradores (isAdmin vem do servidor via /api/auth/me).
+const TORRE_DE_CONTROLE_URL = 'https://claude.ai/code/artifact/5571a2a0-087b-4ff3-9cbe-15d76b05564e';
 
 interface SidebarProps {
   currentView: ViewState;
@@ -11,8 +15,7 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout, isOpen, onClose }) => {
-  // const { profile } = useAuth();
-  // const isAdmin = profile?.role === 'admin';
+  const { isAdmin } = useAuth();
 
   // Lista de itens de navegação para facilitar manutenção e evitar repetição de código
   const navItems = [
@@ -82,6 +85,18 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout, isOpe
               <span>{item.label}</span>
             </button>
           ))}
+          {isAdmin && (
+            <a
+              href={TORRE_DE_CONTROLE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all text-stone-400 hover:bg-forest-border hover:text-white"
+            >
+              <span className="material-symbols-outlined">monitoring</span>
+              <span>Torre de Controle</span>
+              <span className="material-symbols-outlined ml-auto text-[18px]">open_in_new</span>
+            </a>
+          )}
         </nav>
 
         {/* Logout */}
