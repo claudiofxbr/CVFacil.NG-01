@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User } from '../types';
 import { useAuth } from './AuthProvider';
-import { SESSION_EXPIRED_MESSAGE } from '../services/authClient';
+import { SESSION_EXPIRED_MESSAGE, serverChangePassword, serverAdminResetPassword } from '../services/authClient';
 
 interface SettingsProps {
   userInfo: User;
@@ -72,6 +72,62 @@ const Settings: React.FC<SettingsProps> = ({ userInfo }) => {
         : { message: result.message, type: 'error' });
     } finally {
       setIsSavingProfile(false);
+    }
+  };
+
+  // Alterar a própria senha (POST /api/auth/password)
+  const [currentPwd, setCurrentPwd] = useState('');
+  const [newPwd, setNewPwd] = useState('');
+  const [confirmPwd, setConfirmPwd] = useState('');
+  const [isChangingPwd, setIsChangingPwd] = useState(false);
+
+  const handleChangePassword = async () => {
+    if (newPwd !== confirmPwd) {
+      setNotification({ message: 'A confirmação não confere com a nova senha.', type: 'error' });
+      return;
+    }
+    setIsChangingPwd(true);
+    try {
+      const result = await serverChangePassword(currentPwd, newPwd);
+      if (result.ok) {
+        setCurrentPwd(''); setNewPwd(''); setConfirmPwd('');
+        setNotification({ message: 'Senha alterada. Os outros dispositivos foram desconectados.', type: 'success' });
+      } else {
+        setNotification({ message: result.message, type: 'error' });
+      }
+    } finally {
+      setIsChangingPwd(false);
+    }
+  };
+
+  // Admin: redefinir a senha de outro usuário (POST /api/admin/users/reset-password); a senha aparece uma vez
+  const [resetEmail, setResetEmail] = useState('');
+  const [isResetting, setIsResetting] = useState(false);
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
+
+  const handleAdminReset = async () => {
+    setIsResetting(true);
+    setTempPassword(null);
+    try {
+      const result = await serverAdminResetPassword(resetEmail);
+      if (result.ok) {
+        setTempPassword(result.temporaryPassword);
+        setResetEmail('');
+      } else {
+        setNotification({ message: result.message, type: 'error' });
+      }
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
+  const copyTempPassword = async () => {
+    if (!tempPassword) return;
+    try {
+      await navigator.clipboard.writeText(tempPassword);
+      setNotification({ message: 'Senha temporária copiada.', type: 'success' });
+    } catch {
+      setNotification({ message: 'Não foi possível copiar. Selecione e copie manualmente.', type: 'error' });
     }
   };
 
@@ -194,6 +250,96 @@ const Settings: React.FC<SettingsProps> = ({ userInfo }) => {
                 </button>
               </div>
             </div>
+
+            <div className="bg-forest-surface border border-forest-border rounded-2xl p-8">
+              <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">lock_reset</span>
+                Alterar senha
+              </h3>
+              <form
+                onSubmit={(e) => { e.preventDefault(); handleChangePassword(); }}
+                className="grid grid-cols-1 md:grid-cols-3 gap-6"
+              >
+                <div className="space-y-2">
+                  <label htmlFor="current-password" className="text-xs font-bold text-stone-500 uppercase">Senha atual</label>
+                  <input
+                    id="current-password" name="current-password" type="password" autoComplete="current-password"
+                    value={currentPwd} onChange={(e) => setCurrentPwd(e.target.value)}
+                    className="w-full bg-forest-deep border border-forest-border rounded-lg p-3 text-white focus:border-primary focus:outline-none"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="new-password" className="text-xs font-bold text-stone-500 uppercase">Nova senha</label>
+                  <input
+                    id="new-password" name="new-password" type="password" autoComplete="new-password"
+                    value={newPwd} onChange={(e) => setNewPwd(e.target.value)}
+                    className="w-full bg-forest-deep border border-forest-border rounded-lg p-3 text-white focus:border-primary focus:outline-none"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="confirm-password" className="text-xs font-bold text-stone-500 uppercase">Confirmar nova senha</label>
+                  <input
+                    id="confirm-password" name="confirm-password" type="password" autoComplete="new-password"
+                    value={confirmPwd} onChange={(e) => setConfirmPwd(e.target.value)}
+                    className="w-full bg-forest-deep border border-forest-border rounded-lg p-3 text-white focus:border-primary focus:outline-none"
+                  />
+                </div>
+                <div className="md:col-span-3 flex items-center justify-between gap-4">
+                  <p className="text-xs text-stone-500">De 8 a 128 caracteres. Os outros dispositivos serão desconectados.</p>
+                  <button
+                    type="submit"
+                    disabled={isChangingPwd || !currentPwd || !newPwd || !confirmPwd}
+                    className="bg-primary hover:bg-secondary text-white px-6 py-2 rounded-lg font-bold transition-all disabled:opacity-50"
+                  >
+                    Alterar senha
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {isAdmin && (
+              <div className="bg-forest-surface border border-forest-border rounded-2xl p-8">
+                <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary">admin_panel_settings</span>
+                  Redefinir senha de um usuário
+                </h3>
+                <p className="text-xs text-stone-500 mb-6">
+                  Gera uma senha temporária e desconecta o usuário. Ela aparece uma única vez: repasse por um canal seguro e peça para o usuário trocá-la em "Alterar senha".
+                </p>
+                <form
+                  onSubmit={(e) => { e.preventDefault(); handleAdminReset(); }}
+                  className="flex flex-col md:flex-row gap-4 md:items-end"
+                >
+                  <div className="space-y-2 flex-1">
+                    <label htmlFor="reset-email" className="text-xs font-bold text-stone-500 uppercase">E-mail do usuário</label>
+                    <input
+                      id="reset-email" name="reset-email" type="email" autoComplete="off"
+                      value={resetEmail} onChange={(e) => setResetEmail(e.target.value)}
+                      className="w-full bg-forest-deep border border-forest-border rounded-lg p-3 text-white focus:border-primary focus:outline-none"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isResetting || !resetEmail}
+                    className="bg-primary hover:bg-secondary text-white px-6 py-3 rounded-lg font-bold transition-all disabled:opacity-50"
+                  >
+                    Gerar senha temporária
+                  </button>
+                </form>
+                {tempPassword && (
+                  <div className="mt-4 p-4 bg-forest-deep rounded-lg border border-amber-400/30 flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-xs text-stone-500 mb-1 font-bold uppercase">Senha temporária (aparece só agora)</p>
+                      <p className="text-lg text-amber-300 font-mono select-all">{tempPassword}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={copyTempPassword} className="px-3 py-2 rounded-lg border border-forest-border text-stone-300 hover:text-white text-sm font-bold">Copiar</button>
+                      <button onClick={() => setTempPassword(null)} className="px-3 py-2 rounded-lg border border-forest-border text-stone-300 hover:text-white text-sm font-bold">Ocultar</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

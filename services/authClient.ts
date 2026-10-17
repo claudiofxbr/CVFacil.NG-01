@@ -81,6 +81,48 @@ export async function serverUpdateProfile(patch: { name?: string; avatar?: strin
   return { ok: false, message: (code && PROFILE_MESSAGES[code]) || MESSAGES[res.status] || 'Não foi possível salvar o perfil.' };
 }
 
+const PASSWORD_MESSAGES: Record<string, string> = {
+  INVALID_CURRENT_PASSWORD: 'A senha atual está incorreta.',
+  WEAK_PASSWORD: 'A nova senha deve ter entre 8 e 128 caracteres.',
+  SAME_PASSWORD: 'A nova senha deve ser diferente da atual.',
+  INVALID_EMAIL: 'Informe um e-mail válido.',
+  USER_NOT_FOUND: 'Nenhum usuário com este e-mail.',
+  USE_CHANGE_PASSWORD: 'Para a sua própria conta, use "Alterar senha".',
+  FORBIDDEN: 'Apenas administradores podem redefinir senhas.',
+};
+
+async function passwordRequest(path: string, body: unknown): Promise<{ res: Response } | { message: string }> {
+  const res = await post(path, body);
+  if (!res) return { message: MESSAGES[503] };
+  return { res };
+}
+
+async function passwordFailure(res: Response): Promise<string> {
+  if (res.status === 401) return SESSION_EXPIRED_MESSAGE;
+  if (res.status === 429) return MESSAGES[429];
+  const code = await errorCode(res);
+  return (code && PASSWORD_MESSAGES[code]) || MESSAGES[res.status] || 'Não foi possível concluir a operação.';
+}
+
+/** Troca a senha da conta logada (POST /api/auth/password). As outras sessões são encerradas no servidor. */
+export async function serverChangePassword(currentPassword: string, newPassword: string): Promise<AuthResult> {
+  const r = await passwordRequest('/api/auth/password', { currentPassword, newPassword });
+  if ('message' in r) return { ok: false, message: r.message };
+  return r.res.ok ? { ok: true } : { ok: false, message: await passwordFailure(r.res) };
+}
+
+/** Admin: gera senha temporária para outro usuário (POST /api/admin/users/reset-password). Mostrada uma única vez. */
+export async function serverAdminResetPassword(email: string): Promise<{ ok: true; temporaryPassword: string } | { ok: false; message: string }> {
+  const r = await passwordRequest('/api/admin/users/reset-password', { email });
+  if ('message' in r) return { ok: false, message: r.message };
+  if (!r.res.ok) return { ok: false, message: await passwordFailure(r.res) };
+  try {
+    const data = await r.res.json();
+    if (typeof data?.temporaryPassword === 'string') return { ok: true, temporaryPassword: data.temporaryPassword };
+  } catch { /* cai na mensagem genérica abaixo */ }
+  return { ok: false, message: 'Resposta inesperada do servidor.' };
+}
+
 /** true = sessão revogada no servidor; false = falha (rede/5xx), o cookie pode continuar válido. */
 export async function serverLogout(): Promise<boolean> {
   const res = await post('/api/auth/logout');
