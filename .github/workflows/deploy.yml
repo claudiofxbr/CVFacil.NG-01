@@ -47,6 +47,11 @@ jobs:
           PAGBANK_TOKEN: ${{ secrets.PAGBANK_TOKEN }}
           PAGBANK_ENV: ${{ secrets.PAGBANK_ENV }}
           SANDBOX_TESTER_EMAILS: ${{ secrets.SANDBOX_TESTER_EMAILS }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
         run: |
           if [ -n "$DATABASE_URL" ]; then
             B64=$(printf '%s' "$DATABASE_URL" | base64 -w0)
@@ -78,11 +83,28 @@ jobs:
             echo "::add-mask::$B64"
             echo "TESTER_B64=$B64" >> "$GITHUB_ENV"
           fi
+          # SMTP (recuperacao de senha por e-mail): um bloco unico KEY='valor' (aspas simples evitam a expansao de $ e #
+          # pelo carregador de .env do Next). Valor com aspa simples ou quebra de linha nao e aplicado.
+          if [ -n "$SMTP_HOST" ] && [ -n "$SMTP_USER" ] && [ -n "$SMTP_PASS" ] && [ -n "$MAIL_FROM" ]; then
+            MAIL_ENV=""
+            for NAME in SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASS MAIL_FROM; do
+              VAL="${!NAME}"
+              case "$VAL" in
+                *"'"*|*$'\n'*) echo "::warning::$NAME contem aspa simples ou quebra de linha; credenciais de e-mail nao aplicadas"; MAIL_ENV=""; break ;;
+              esac
+              if [ -n "$VAL" ]; then MAIL_ENV="${MAIL_ENV}${NAME}='${VAL}'"$'\n'; fi
+            done
+            if [ -n "$MAIL_ENV" ]; then
+              B64=$(printf '%s' "$MAIL_ENV" | base64 -w0)
+              echo "::add-mask::$B64"
+              echo "MAIL_B64=$B64" >> "$GITHUB_ENV"
+            fi
+          fi
 
       - name: Executar Deploy via SSH na VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
-          envs: DB_B64,GEMINI_B64,ADMIN_B64,PAGBANK_TOKEN_B64,PAGBANK_ENV_B64,TESTER_B64
+          envs: DB_B64,GEMINI_B64,ADMIN_B64,PAGBANK_TOKEN_B64,PAGBANK_ENV_B64,TESTER_B64,MAIL_B64
           host: ${{ secrets.VPS_HOST || '69.62.87.38' }}
           username: ${{ secrets.VPS_USER || 'root' }}
           key: ${{ secrets.VPS_SSH_KEY }}
@@ -183,6 +205,13 @@ jobs:
                 mv .env.tmp .env )
               unset NOVO
               echo "SANDBOX_TESTER_EMAILS do GitHub Secret aplicado ao .env"
+            fi
+            if [ -n "$MAIL_B64" ]; then
+              ( umask 077
+                grep -vE '^(SMTP_HOST|SMTP_PORT|SMTP_USER|SMTP_PASS|MAIL_FROM)=' .env > .env.tmp 2>/dev/null || true
+                printf '%s' "$MAIL_B64" | base64 -d >> .env.tmp
+                mv .env.tmp .env )
+              echo "Credenciais de e-mail (SMTP) do GitHub Secret aplicadas ao .env"
             fi
 
             # 3. Instalação de dependências e Build de Produção
