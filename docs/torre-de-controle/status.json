@@ -1,0 +1,108 @@
+{
+  "project": {
+    "name": "Torre de Controle — CVFacil.NG",
+    "subtitle": "exclusivo do CVFacil.NG — processos ativos e pendências; concluídos com sucesso saem da lista",
+    "footer": "fonte: docs/torre-de-controle/status.json, versionado junto ao código do aplicativo"
+  },
+  "categories": {
+    "health": "Saúde do sistema",
+    "auto": "Processos automáticos recorrentes",
+    "queue": "Fila / pendências"
+  },
+  "statusLabels": {
+    "ok": "OK",
+    "active": "ativo, recorrente",
+    "queued": "na fila",
+    "running": "rodando",
+    "failed": "falhou",
+    "done": "concluído"
+  },
+  "processes": [
+    {
+      "category": "health",
+      "id": "health-app",
+      "label": "Aplicativo em produção",
+      "status": "ok",
+      "detail": "Home 200; login com dados falsos 401 (esperado); sessões próprias (cookie HttpOnly, hash scrypt); rotas de dados protegidas por sessão; admin só por ADMIN_EMAILS no servidor."
+    },
+    {
+      "category": "health",
+      "id": "health-quality",
+      "label": "Qualidade do código",
+      "status": "ok",
+      "detail": "328 testes verdes (34 arquivos), tsc limpo, build compilado; npm audit de produção: 0 vulnerabilidades."
+    },
+    {
+      "category": "health",
+      "id": "health-payments",
+      "label": "Pagamentos PagBank (sandbox)",
+      "status": "ok",
+      "detail": "Checkout hospedado com cartão de crédito e PIX pagos e confirmados no sandbox; plano liberado só após consulta à API (PAID, referência e valor). Ambiente em sandbox, com trava para administrador/testador."
+    },
+    {
+      "category": "health",
+      "id": "health-recovery",
+      "label": "Recuperação de senha pelo administrador",
+      "status": "ok",
+      "detail": "Em produção: Configurações > Alterar senha (qualquer usuário) e Redefinir senha de um usuário (administrador, senha temporária mostrada uma vez). Rotas validadas (401 sem sessão)."
+    },
+    {
+      "category": "auto",
+      "id": "auto-deploy",
+      "label": "CI/CD — Build, validação e deploy na VPS",
+      "status": "active",
+      "detail": "A cada push na main: testes, tsc, build e deploy via SSH; health check pelo login com credencial falsa (espera 401)."
+    },
+    {
+      "category": "auto",
+      "id": "auto-dependabot",
+      "label": "Dependabot",
+      "status": "active",
+      "detail": "Alertas de dependências e PRs automáticos; 1 alerta aberto (postcss-selector-parser, risco aceito: só atua no build do Tailwind 3)."
+    },
+    {
+      "category": "auto",
+      "id": "auto-torre-primordial",
+      "label": "Rotina primordial da Torre (limpeza + CVFacil.NG)",
+      "status": "active",
+      "detail": "Rotina de nuvem de hora em hora: remove o que concluiu e inclui workflows/PRs novos no painel do Claude. Este arquivo é atualizado a cada entrega relevante."
+    },
+    {
+      "category": "queue",
+      "id": "queue-pagbank-debito",
+      "label": "PagBank: ativação do cartão de débito",
+      "status": "queued",
+      "detail": "A API aceita DEBIT_CARD (201), mas a página de pagamento mostra só crédito e Pix; a documentação exige aprovação interna prévia. Pedido enviado ao suporte do PagBank, que pediu os logs de request e response. Aguardando resposta."
+    },
+    {
+      "category": "queue",
+      "id": "queue-conta-avaliador",
+      "label": "Conta do avaliador do PagBank",
+      "status": "queued",
+      "detail": "Criar a conta de teste no app (aba CADASTRO), repassar as credenciais ao PagBank só pelo canal deles e removê-la de SANDBOX_TESTER_EMAILS ao final."
+    },
+    {
+      "category": "queue",
+      "id": "queue-teste-telas-senha",
+      "label": "Teste visual das telas de senha",
+      "status": "queued",
+      "detail": "Falta testar logado (com conta de teste) Alterar senha e Redefinir senha de um usuário; o atalho Torre de Controle no menu aparece só para administrador."
+    },
+    {
+      "category": "queue",
+      "id": "queue-producao-pagbank",
+      "label": "Entrada em produção do PagBank",
+      "status": "queued",
+      "detail": "Depende da aprovação da homologação, token de produção, PAGBANK_ENV=production e débito habilitado na conta de produção."
+    },
+    {
+      "category": "queue",
+      "id": "queue-alerta-dependabot-6",
+      "label": "Dispensar o alerta Dependabot #6 como risco aceito",
+      "status": "queued",
+      "detail": "Ação do proprietário no GitHub. A correção definitiva exige migrar para o Tailwind 4 (planejamento próprio)."
+    }
+  ],
+  "readyWhenNoBlocking": false,
+  "updatedAt": "2026-10-17T20:40:00Z"
+}
