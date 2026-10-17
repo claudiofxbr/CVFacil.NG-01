@@ -114,10 +114,11 @@ describe('fontes: não há mais entrada sem credencial no servidor', () => {
     expect(auth).not.toMatch(/localStorage/);
   });
 
-  it('indicador de conexão e link de recuperação indisponível (sem provedor de e-mail)', () => {
+  it('indicador de conexão e link de recuperação orienta pedir a redefinição ao administrador (sem provedor de e-mail)', () => {
     expect(auth).not.toContain('MODO LOCAL');
     expect(auth).toContain('CONECTADO AO SERVIDOR');
-    expect(auth).toMatch(/e\.preventDefault\(\);[^}]*Recuperação de senha indisponível[^}]*Contate o administrador/);
+    expect(auth).toMatch(/e\.preventDefault\(\);[^}]*peça ao administrador para redefinir sua senha[^}]*senha temporária[^}]*Configurações/);
+    expect(auth).not.toContain('Recuperação de senha indisponível');
   });
 
   it('Auth usa login/register do servidor', () => {

@@ -244,7 +244,7 @@ const Auth: React.FC = () => {
             </form>
 
             <div className="mt-8 text-center">
-                 <a href="#" onClick={(e) => { e.preventDefault(); setNotification({ message: 'Recuperação de senha indisponível no momento. Contate o administrador.', type: 'error' }); }} className="text-xs text-primary hover:text-white transition-colors uppercase tracking-wider font-bold">Esqueceu sua senha?</a>
+                 <a href="#" onClick={(e) => { e.preventDefault(); setNotification({ message: 'Para recuperar o acesso, peça ao administrador para redefinir sua senha. Você receberá uma senha temporária e poderá trocá-la em Configurações.', type: 'error' }); }} className="text-xs text-primary hover:text-white transition-colors uppercase tracking-wider font-bold">Esqueceu sua senha?</a>
             </div>
         </div>
 
